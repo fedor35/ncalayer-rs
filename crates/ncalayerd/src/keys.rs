@@ -82,7 +82,19 @@ pub async fn select_entry(ui: &dyn Ui, settings_path: &Path, storage: &str, key_
         .position(|e| wanted.is_none_or(|w| e.cert.key_usage_type() == w || e.cert.extended_key_usage().map(|v| v.len() > 1).unwrap_or(false)))
         .or_else(|| (!entries.is_empty()).then_some(0));
     match idx {
-        Some(i) => Ok(Selection::Chosen(Box::new(entries.swap_remove(i)))),
+        Some(i) => {
+            let e = entries.swap_remove(i);
+            tracing::info!(
+                file = %file.display(),
+                subject = %e.cert.subject_dn(),
+                algorithm = e.cert.algorithm().unwrap_or("?"),
+                not_after = %e.cert.not_after_str().unwrap_or_default(),
+                eku = ?e.cert.extended_key_usage().unwrap_or_default().iter().map(|o| o.to_string()).collect::<Vec<_>>(),
+                requested = ?key_type,
+                "key selected"
+            );
+            Ok(Selection::Chosen(Box::new(e)))
+        }
         None => {
             ui.error("В хранилище нет подходящих ключей").await;
             anyhow::bail!("EMPTY_KEY_LIST")

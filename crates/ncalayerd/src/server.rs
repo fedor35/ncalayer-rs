@@ -121,6 +121,9 @@ async fn dispatch(text: &str, origin: &str, shared: &Shared) -> Value {
         "reply"
     );
     tracing::debug!(reply = %redact(&reply), "reply body");
+    // Full copies for offline diagnosis: <data dir>/last-request.json and last-reply.json.
+    let _ = std::fs::write(shared.settings_path.with_file_name("last-request.json"), text);
+    let _ = std::fs::write(shared.settings_path.with_file_name("last-reply.json"), reply.to_string());
     reply
 }
 
