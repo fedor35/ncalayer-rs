@@ -9,6 +9,8 @@ authors.workspace = true
 
 [dependencies]
 nca-protocol = { path = "../nca-protocol" }
+kz-pki = { path = "../kz-pki" }
+async-trait = "0.1"
 anyhow.workspace = true
 serde.workspace = true
 serde_json.workspace = true

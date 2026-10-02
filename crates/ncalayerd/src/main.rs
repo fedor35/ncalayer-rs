@@ -2,7 +2,9 @@
 #![forbid(unsafe_code)]
 
 mod ca;
+mod keys;
 mod server;
+mod ui;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
@@ -42,7 +44,14 @@ async fn main() -> Result<()> {
     match cli.cmd.unwrap_or(Cmd::Run { port: 13579 }) {
         Cmd::Run { port } => {
             let certs = ca::ensure(&paths)?;
-            server::run(port, certs).await
+            let ui: std::sync::Arc<dyn ui::Ui> = match ui::FixedUi::from_env() {
+                Some(fixed) => {
+                    tracing::warn!("NCALAYER_TEST_KEY set: headless test UI, no dialogs");
+                    std::sync::Arc::new(fixed)
+                }
+                None => std::sync::Arc::new(ui::DialogUi::detect()?),
+            };
+            server::run(port, certs, ui, paths.dir.join("settings.json")).await
         }
         Cmd::InstallCa => {
             ca::ensure(&paths)?;

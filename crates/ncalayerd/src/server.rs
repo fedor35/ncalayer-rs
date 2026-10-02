@@ -1,6 +1,9 @@
 //! TLS listener on 127.0.0.1:<port>: WebSocket endpoint plus a small status page.
 
 use crate::ca::ServerCerts;
+use crate::keys::{self, Selection};
+use crate::ui::Ui;
+use std::path::PathBuf;
 use anyhow::Result;
 use axum::{
     extract::{
@@ -25,11 +28,13 @@ struct AppState {
 
 struct Shared {
     port: u16,
+    ui: Arc<dyn Ui>,
+    settings_path: PathBuf,
 }
 
-pub async fn run(port: u16, certs: ServerCerts) -> Result<()> {
+pub async fn run(port: u16, certs: ServerCerts, ui: Arc<dyn Ui>, settings_path: PathBuf) -> Result<()> {
     let tls = RustlsConfig::from_pem(certs.cert_chain_pem, certs.key_pem).await?;
-    let state = AppState { inner: Arc::new(Shared { port }) };
+    let state = AppState { inner: Arc::new(Shared { port, ui, settings_path }) };
     let app = Router::new()
         .route("/", get(root))
         .fallback(get(root))
@@ -55,12 +60,12 @@ async fn root(
     }
     let origin = headers.get("origin").and_then(|v| v.to_str().ok()).unwrap_or("").to_string();
     match ws {
-        Ok(ws) => ws.on_upgrade(move |socket| session(socket, origin)),
+        Ok(ws) => ws.on_upgrade(move |socket| session(socket, origin, state.inner.clone())),
         Err(_) => Html(status_page(state.inner.port)).into_response(),
     }
 }
 
-async fn session(mut socket: WebSocket, origin: String) {
+async fn session(mut socket: WebSocket, origin: String, shared: Arc<Shared>) {
     tracing::info!(%origin, "connection opened");
     if socket.send(Message::Text(proto::greeting().to_string().into())).await.is_err() {
         return;
@@ -77,7 +82,7 @@ async fn session(mut socket: WebSocket, origin: String) {
             }
             continue;
         }
-        let reply = dispatch(&text, &origin).await;
+        let reply = dispatch(&text, &origin, &shared).await;
         if socket.send(Message::Text(reply.to_string().into())).await.is_err() {
             break;
         }
@@ -85,7 +90,7 @@ async fn session(mut socket: WebSocket, origin: String) {
     tracing::info!(%origin, "connection closed");
 }
 
-async fn dispatch(text: &str, origin: &str) -> Value {
+async fn dispatch(text: &str, origin: &str, shared: &Shared) -> Value {
     let req = match Request::parse(text) {
         Ok(r) => r,
         Err(e) => {
@@ -95,20 +100,36 @@ async fn dispatch(text: &str, origin: &str) -> Value {
     };
     tracing::info!(%origin, module = %req.module, method = %req.method, "request");
     match req.module.as_str() {
-        proto::MODULE_COMMON_UTILS => common_utils(&req),
+        proto::MODULE_COMMON_UTILS => common_utils(&req, shared).await,
         proto::MODULE_BASICS => basics(&req),
         proto::MODULE_ACCESSORY => accessory(&req),
         proto::MODULE_APPLET => proto::applet_error(format!("Method not implemented. Method:{}", req.method), req.uuid.clone()),
-        _ => proto::module_not_found(),
+        other => {
+            // Third-party NCALayer bundles (КНП, ЭСФ, Госзакуп…) are Java and cannot be loaded;
+            // tell the user which one the site asked for so a shim can be requested (PLAN §5).
+            shared.ui.notify("Модуль не поддерживается", &format!("{origin} запросил модуль {other}")).await;
+            proto::module_not_found()
+        }
     }
 }
 
-fn common_utils(req: &Request) -> Value {
+async fn common_utils(req: &Request, shared: &Shared) -> Value {
     let uuid = req.uuid.clone();
     let resp = match req.method.as_str() {
         // Hardware tokens only; PKCS12 files are never listed here, as in Java.
         "getActiveTokens" => CommonResponse::ok(json!([]), uuid),
         "changeLocale" => CommonResponse::ok(Value::Null, uuid),
+        "getKeyInfo" => {
+            let storage = req.arg_str(0).unwrap_or("PKCS12");
+            match keys::select_entry(shared.ui.as_ref(), &shared.settings_path, storage, None).await {
+                Ok(Selection::Chosen(entry)) => match keys::key_info(&entry) {
+                    Ok(info) => CommonResponse::ok(serde_json::to_value(info).expect("serializable"), uuid),
+                    Err(e) => CommonResponse::error(e.to_string(), uuid),
+                },
+                Ok(Selection::Cancelled) => CommonResponse::canceled(uuid),
+                Err(e) => CommonResponse::error(e.to_string(), uuid),
+            }
+        }
         other => CommonResponse::error(format!("Method {other} is not implemented yet"), uuid),
     };
     serde_json::to_value(resp).expect("serializable")
