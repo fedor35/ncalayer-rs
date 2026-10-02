@@ -307,7 +307,6 @@ async fn basics_sign(req: &Request, shared: &Shared) -> BasicsResponse {
         Some(Value::Array(v)) => v.iter().filter_map(|x| x.as_str().map(str::to_string)).collect(),
         _ => return BasicsResponse::error(BasicsFailure::InvalidSigningParams, "data is required"),
     };
-    let single = matches!(a.get("data"), Some(Value::String(_)));
     // Key usage from signerParams.extKeyUsageOids: clientAuth → AUTHENTICATION, else SIGNATURE.
     let key_type = a
         .get("signerParams")
@@ -327,7 +326,8 @@ async fn basics_sign(req: &Request, shared: &Shared) -> BasicsResponse {
             for item in items {
                 // Some portals send the XML base64-encoded with `decode: true`.
                 let xml = if decode { String::from_utf8(cms_api::decode_b64(&item)?)? } else { item };
-                out.push(kz_xmldsig::sign_enveloped(&entry, &xml, &mut rng)?);
+                // basics emits a whitespace-free signature (egov.kz re-serializes before verifying).
+                out.push(kz_xmldsig::sign_enveloped_with_layout(&entry, &xml, kz_xmldsig::Layout::Compact, &mut rng)?);
             }
             return Ok(out);
         }
@@ -340,11 +340,10 @@ async fn basics_sign(req: &Request, shared: &Shared) -> BasicsResponse {
     })
     .await;
     match r {
-        Ok(Ok(mut sigs)) => {
+        // Captured from NCALayer 1.4: `body.result` is an array even for a single `data` string.
+        Ok(Ok(sigs)) => {
             if output_cert {
                 BasicsResponse::ok(json!({ "signatures": sigs, "certificate": cert_pem }))
-            } else if single {
-                BasicsResponse::ok(Value::String(sigs.remove(0)))
             } else {
                 BasicsResponse::ok(json!(sigs))
             }

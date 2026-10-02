@@ -47,5 +47,5 @@ pub use algo::XmlAlgorithm;
 pub use c14n::{canonicalize, canonicalize_str, Method};
 pub use error::{Error, Result};
 pub use kz_cms::SignerAlgorithm;
-pub use sign::{sign_by_id, sign_enveloped, sign_enveloped_many};
+pub use sign::{sign_by_id, sign_enveloped, sign_enveloped_many, sign_by_id_with_layout, sign_enveloped_with_layout, Layout};
 pub use verify::{verify, verify_with, VerifyReport};

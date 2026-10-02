@@ -165,5 +165,7 @@ documentolog, idocs…) — список `https://pki.gov.kz/docs/nl_ru/bundles/
 - XMLDSig: SignatureValue для ГОСТ тоже r‖s little-endian. Enveloped = inclusive C14N 1.0, Reference URI="" с трансформами
   enveloped + c14n#WithComments; по Id = exclusive C14N, Reference "#Id", элемент обязан иметь атрибут `Id`.
   DigestValue совпадают с Santuario побайтно. Долг: raw sign/verify продублированы в kz-xmldsig (в kz-cms они pub(crate)).
-- basics.sign: `body.result` = строка (data — строка) или массив строк (data — массив); объект `{signatures[], certificate}`
-  только при `signingParams.outputCert=true` (SigningResponse<T> / RawSigningResult в байткоде). Первая ошибка на egov 02.10.
+- basics.sign (снято с живого NCALayer 1.4): `body.result` — ВСЕГДА массив строк, даже для одной `data`; объект
+  `{signatures[], certificate}` только при `signingParams.outputCert=true`. XML от basics компактный: без переводов строк
+  и без переносов в base64 (в отличие от commonUtils.signXml в стиле Santuario). egov.kz переразбирает документ и теряет
+  пробельные узлы внутри SignedInfo → подпись с переносами «недействительна». Две ошибки на egov 02.10.

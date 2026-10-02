@@ -6,6 +6,20 @@ use kz_pki::Entry;
 use rand_core::CryptoRng;
 
 use crate::algo::{base64_wrapped, sign_raw, XmlAlgorithm, DSIG_NS, ENVELOPED};
+use base64::Engine as _;
+
+/// How the `ds:Signature` subtree is laid out in the output text.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Layout {
+    /// Apache Santuario style (NCALayer `commonUtils.signXml`): a newline between
+    /// elements, base64 wrapped at 76 columns with CR LF.
+    #[default]
+    Santuario,
+    /// No whitespace at all and single-line base64 (NCALayer `basics.sign`).
+    /// Portals such as egov.kz re-serialize the document before verifying, which drops
+    /// whitespace-only text nodes inside `SignedInfo`; a compact signature survives that.
+    Compact,
+}
 use crate::c14n::{canonicalize, Method};
 use crate::dom::{Attr, Document, NodeId};
 use crate::error::{Error, Result};
@@ -20,6 +34,16 @@ pub fn sign_enveloped<R: CryptoRng + ?Sized>(
     xml: &str,
     rng: &mut R,
 ) -> Result<String> {
+    sign_enveloped_with_layout(entry, xml, Layout::Santuario, rng)
+}
+
+/// [`sign_enveloped`] with an explicit [`Layout`].
+pub fn sign_enveloped_with_layout<R: CryptoRng + ?Sized>(
+    entry: &Entry,
+    xml: &str,
+    layout: Layout,
+    rng: &mut R,
+) -> Result<String> {
     let doc = Document::parse(xml)?;
     let root = doc.root_element()?;
     sign_document(
@@ -31,6 +55,7 @@ pub fn sign_enveloped<R: CryptoRng + ?Sized>(
             uri: String::new(),
             enveloped: true,
             method: Method::INCLUSIVE,
+            layout,
         },
         rng,
     )
@@ -47,6 +72,18 @@ pub fn sign_by_id<R: CryptoRng + ?Sized>(
     xml: &str,
     tbs_xpath: &str,
     parent_xpath: &str,
+    rng: &mut R,
+) -> Result<String> {
+    sign_by_id_with_layout(entry, xml, tbs_xpath, parent_xpath, Layout::Santuario, rng)
+}
+
+/// [`sign_by_id`] with an explicit [`Layout`].
+pub fn sign_by_id_with_layout<R: CryptoRng + ?Sized>(
+    entry: &Entry,
+    xml: &str,
+    tbs_xpath: &str,
+    parent_xpath: &str,
+    layout: Layout,
     rng: &mut R,
 ) -> Result<String> {
     let doc = Document::parse(xml)?;
@@ -68,6 +105,7 @@ pub fn sign_by_id<R: CryptoRng + ?Sized>(
             uri: format!("#{id}"),
             enveloped: false,
             method: Method::EXCLUSIVE,
+            layout,
         },
         rng,
     )
@@ -93,6 +131,8 @@ struct Target {
     enveloped: bool,
     /// `CanonicalizationMethod` of `SignedInfo`.
     method: Method,
+    /// Text layout of the signature subtree.
+    layout: Layout,
 }
 
 fn sign_document<R: CryptoRng + ?Sized>(
@@ -114,9 +154,20 @@ fn sign_document<R: CryptoRng + ?Sized>(
             .collect();
         doc.append_element(parent, Some("ds"), local, &[], attrs)
     };
+    let compact = t.layout == Layout::Compact;
     let nl = |doc: &mut Document, parent: NodeId| {
-        doc.append_text(parent, "\n");
+        if !compact {
+            doc.append_text(parent, "\n");
+        }
     };
+    let b64 = |data: &[u8]| -> String {
+        if compact {
+            base64::engine::general_purpose::STANDARD.encode(data)
+        } else {
+            base64_wrapped(data)
+        }
+    };
+    let wrap = |s: String| -> String { if compact { s } else { format!("\n{s}\n") } };
 
     let sig = doc.append_element(
         t.parent,
@@ -181,8 +232,8 @@ fn sign_document<R: CryptoRng + ?Sized>(
     let x509_data = el(&mut doc, key_info, "X509Data", &[]);
     nl(&mut doc, x509_data);
     let x509_cert = el(&mut doc, x509_data, "X509Certificate", &[]);
-    let cert_b64 = base64_wrapped(entry.cert.as_der());
-    doc.set_text(x509_cert, &format!("\n{cert_b64}\n"));
+    let cert_b64 = b64(entry.cert.as_der());
+    doc.set_text(x509_cert, &wrap(cert_b64));
     nl(&mut doc, x509_data);
     nl(&mut doc, key_info);
     nl(&mut doc, sig);
@@ -191,14 +242,11 @@ fn sign_document<R: CryptoRng + ?Sized>(
     // (XMLDSig §4.4.3.2), so `#WithComments` on the transform changes nothing.
     let exclude = if t.enveloped { Some(sig) } else { None };
     let canon = canonicalize(&doc, t.tbs, exclude, Method::INCLUSIVE);
-    doc.set_text(digest_value, &base64_wrapped(&alg.digest(&canon)));
+    doc.set_text(digest_value, &b64(&alg.digest(&canon)));
 
     let signed_info_canon = canonicalize(&doc, signed_info, None, t.method);
     let signature = sign_raw(&entry.key, &signed_info_canon, rng)?;
-    doc.set_text(
-        signature_value,
-        &format!("\n{}\n", base64_wrapped(&signature)),
-    );
+    doc.set_text(signature_value, &wrap(b64(&signature)));
 
     let mut text = String::new();
     doc.serialize(sig, &mut text);
