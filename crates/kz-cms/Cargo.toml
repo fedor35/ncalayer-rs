@@ -1,0 +1,25 @@
+[package]
+name = "kz-cms"
+description = "CMS SignedData / CAdES-BES / CAdES-T with GOST R 34.10-2015, GOST R 34.10-2004 and RSA signers for an open NCALayer replacement (Kazakhstan NCA)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+keywords = ["cms", "cades", "gost", "kazakhstan", "ncalayer"]
+categories = ["cryptography"]
+
+[dependencies]
+thiserror = { workspace = true }
+gost3410 = { path = "../gost3410" }
+kz-pki = { path = "../kz-pki" }
+der = { version = "0.8", features = ["alloc", "oid"] }
+rsa = { version = "0.10.0-rc.18", features = ["sha2"] }
+sha2 = "0.11"
+rand_core = "0.10"
+time = { version = "0.3", features = ["formatting", "macros"] }
+ureq = { version = "3", default-features = false }
+
+[dev-dependencies]
+hex = "0.4"
+rand = "0.10"
