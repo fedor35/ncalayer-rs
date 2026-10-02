@@ -27,7 +27,10 @@ type Mp = FixedMontyParams<LIMBS>;
 /// Parse a big-endian hex string (any length up to 128 nibbles, optional
 /// `0x` prefix, upper or lower case) into a [`U512`].
 pub fn uint_from_be_hex(hex: &str) -> Result<U512> {
-    let hex = hex.strip_prefix("0x").or_else(|| hex.strip_prefix("0X")).unwrap_or(hex);
+    let hex = hex
+        .strip_prefix("0x")
+        .or_else(|| hex.strip_prefix("0X"))
+        .unwrap_or(hex);
     if hex.len() > 128 || !hex.bytes().all(|b| b.is_ascii_hexdigit()) {
         return Err(Error::InvalidHex);
     }
@@ -48,7 +51,9 @@ pub fn uint_from_dec(dec: &str) -> Result<U512> {
     let ten = U512::from_u64(10);
     let mut acc = U512::ZERO;
     for b in dec.bytes() {
-        acc = acc.wrapping_mul(&ten).wrapping_add(&U512::from_u64(u64::from(b - b'0')));
+        acc = acc
+            .wrapping_mul(&ten)
+            .wrapping_add(&U512::from_u64(u64::from(b - b'0')));
     }
     Ok(acc)
 }
@@ -59,7 +64,10 @@ pub fn uint_from_dec(dec: &str) -> Result<U512> {
 pub(crate) fn to_be_bytes(v: &U512, len: usize) -> Vec<u8> {
     let full = v.to_be_bytes();
     let full: &[u8] = full.as_ref();
-    assert!(full[..64 - len].iter().all(|&b| b == 0), "value does not fit");
+    assert!(
+        full[..64 - len].iter().all(|&b| b == 0),
+        "value does not fit"
+    );
     full[64 - len..].to_vec()
 }
 
@@ -193,7 +201,9 @@ impl Curve {
         }
         let fp = Mp::new(p_odd);
         let fq = Mp::new(q_odd);
-        let q_nz = NonZero::new(q).into_option().ok_or(Error::InvalidCurveParams)?;
+        let q_nz = NonZero::new(q)
+            .into_option()
+            .ok_or(Error::InvalidCurveParams)?;
         let q_bits = q.bits_vartime();
         let coord_len = if p.bits_vartime() <= 256 { 32 } else { 64 };
         let g = Jacobian {
@@ -397,7 +407,11 @@ impl Curve {
         let x3 = r.square().sub(&j).sub(&v.double());
         let y3 = r.mul(&v.sub(&x3)).sub(&s1.mul(&j).double());
         let z3 = p.z.add(&q.z).square().sub(&z1z1).sub(&z2z2).mul(&h);
-        Jacobian { x: x3, y: y3, z: z3 }
+        Jacobian {
+            x: x3,
+            y: y3,
+            z: z3,
+        }
     }
 
     /// Scalar multiplication `k·P` by a Montgomery ladder over `order_bits()`

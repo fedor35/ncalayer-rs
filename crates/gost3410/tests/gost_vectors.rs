@@ -60,11 +60,11 @@ fn appendix_a1_256() {
         "41aa28d2f1ab148280cd9ed56feda41974053554a42767b83ad043fd39dc0493\
          01456c64ba4642a1653c235a98a60249bcd6d3f746b631df928014f6c5bf9c40"
     );
-    let x509 = sig.to_bytes_x509(&curve);
-    assert_eq!(&x509[..32], &gost[32..]);
-    assert_eq!(&x509[32..], &gost[..32]);
+    let rfc = sig.to_bytes_rfc4491(&curve);
+    assert_eq!(&rfc[..32], &gost[32..]);
+    assert_eq!(&rfc[32..], &gost[..32]);
     assert_eq!(Signature::from_bytes_gost(&curve, &gost).unwrap(), sig);
-    assert_eq!(Signature::from_bytes_x509(&curve, &x509).unwrap(), sig);
+    assert_eq!(Signature::from_bytes_rfc4491(&curve, &rfc).unwrap(), sig);
 
     // Explicit public-key point check.
     let pk2 = PublicKey::from_affine(&curve, AffinePoint::new(qx, qy)).unwrap();

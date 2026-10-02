@@ -217,32 +217,36 @@ struct GostParams {
 /// * `OCTET STRING` of `len` bytes, little-endian (what Kalkan writes);
 /// * `INTEGER`, big-endian (older CryptoPro-style containers);
 /// * raw `len` bytes without an inner tag, assumed little-endian.
+///
+/// The tagged forms are tried first; a raw blob that happens to parse as a
+/// well-formed `OCTET STRING`/`INTEGER` spanning the whole input is
+/// indistinguishable from the tagged form, which is accepted as a limitation.
 fn decode_gost_scalar(inner: &[u8], len: usize) -> Result<Vec<u8>> {
-    let mut d = match inner.first() {
-        Some(&crate::ber::TAG_OCTET_STRING) if inner.len() != len => {
-            let s = der::asn1::OctetStringRef::from_der(inner)?;
-            let mut v = s.as_bytes().to_vec();
-            v.reverse();
-            v
-        }
-        Some(&crate::ber::TAG_INTEGER) if inner.len() != len => {
-            let i = der::asn1::UintRef::from_der(inner)?;
-            i.as_bytes().to_vec()
-        }
-        Some(_) if inner.len() == len => {
+    let tagged = match inner.first() {
+        Some(&crate::ber::TAG_OCTET_STRING) => der::asn1::OctetString::from_der(inner)
+            .ok()
+            .filter(|s| s.as_bytes().len() == len)
+            .map(|s| {
+                let mut v = s.as_bytes().to_vec();
+                v.reverse();
+                v
+            }),
+        Some(&crate::ber::TAG_INTEGER) => der::asn1::UintRef::from_der(inner)
+            .ok()
+            .filter(|i| i.as_bytes().len() <= len)
+            .map(|i| i.as_bytes().to_vec()),
+        _ => None,
+    };
+    let mut d = match tagged {
+        Some(d) => d,
+        None if inner.len() == len => {
             let mut v = inner.to_vec();
             v.reverse();
             v
         }
-        _ => return Err(Error::PrivateKey("unrecognised GOST private key encoding".into())),
+        None => return Err(Error::PrivateKey("unrecognised GOST private key encoding".into())),
     };
-    // Normalise to exactly `len` bytes (strip leading zeros / left-pad).
-    while d.len() > len && d[0] == 0 {
-        d.remove(0);
-    }
-    if d.len() > len {
-        return Err(Error::PrivateKey("GOST private key too long".into()));
-    }
+    // Normalise to exactly `len` bytes (left-pad with zeros).
     while d.len() < len {
         d.insert(0, 0);
     }
@@ -255,7 +259,7 @@ fn decode_gost_point(bits: &[u8], len: usize) -> Result<(Vec<u8>, Vec<u8>)> {
     let raw: Vec<u8> = if bits.len() == 2 * len {
         bits.to_vec()
     } else {
-        der::asn1::OctetStringRef::from_der(bits)?.as_bytes().to_vec()
+        der::asn1::OctetString::from_der(bits)?.as_bytes().to_vec()
     };
     if raw.len() != 2 * len {
         return Err(Error::Asn1(format!("GOST public key: expected {} bytes, got {}", 2 * len, raw.len())));
@@ -265,4 +269,39 @@ fn decode_gost_point(bits: &[u8], len: usize) -> Result<(Vec<u8>, Vec<u8>)> {
     x.reverse();
     y.reverse();
     Ok((x, y))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn scalar_octet_string_little_endian() {
+        // OCTET STRING of 4 bytes LE -> BE
+        let d = decode_gost_scalar(&[0x04, 0x04, 0x01, 0x02, 0x03, 0x04], 4).unwrap();
+        assert_eq!(d, vec![0x04, 0x03, 0x02, 0x01]);
+    }
+
+    #[test]
+    fn scalar_integer_big_endian() {
+        // INTEGER 0x00ff0203 (leading zero for sign) -> padded to 4 bytes BE
+        let d = decode_gost_scalar(&[0x02, 0x04, 0x00, 0xff, 0x02, 0x03], 4).unwrap();
+        assert_eq!(d, vec![0x00, 0xff, 0x02, 0x03]);
+        let d = decode_gost_scalar(&[0x02, 0x02, 0x02, 0x03], 4).unwrap();
+        assert_eq!(d, vec![0x00, 0x00, 0x02, 0x03]);
+    }
+
+    #[test]
+    fn scalar_raw_little_endian() {
+        let d = decode_gost_scalar(&[0x01, 0x02, 0x03, 0x04], 4).unwrap();
+        assert_eq!(d, vec![0x04, 0x03, 0x02, 0x01]);
+    }
+
+    #[test]
+    fn point_decoding() {
+        let bits = [0x04, 0x04, 0x01, 0x02, 0x03, 0x04];
+        let (x, y) = decode_gost_point(&bits, 2).unwrap();
+        assert_eq!(x, vec![0x02, 0x01]);
+        assert_eq!(y, vec![0x04, 0x03]);
+    }
 }

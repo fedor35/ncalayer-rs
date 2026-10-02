@@ -58,3 +58,15 @@ impl From<pkcs8::Error> for Error {
         Error::PrivateKey(e.to_string())
     }
 }
+
+impl From<der::oid::Error> for Error {
+    fn from(e: der::oid::Error) -> Self {
+        Error::Asn1(format!("object identifier: {e}"))
+    }
+}
+
+impl From<der::pem::Error> for Error {
+    fn from(e: der::pem::Error) -> Self {
+        Error::Asn1(format!("PEM: {e}"))
+    }
+}

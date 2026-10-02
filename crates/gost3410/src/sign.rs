@@ -32,8 +32,9 @@ impl Signature {
     /// Encode as the standard's bit string `ζ = r̄ ‖ s̄`
     /// (GOST R 34.10-2012 §6.1 step 7, RFC 7091 §6.1): `r` then `s`, each a
     /// big-endian integer of `curve.coordinate_len()` bytes.  This is the
-    /// order used in the standard's test examples; it is **not** the X.509
-    /// order.
+    /// order used in the standard's test examples; it is **not** what X.509
+    /// certificates contain (see [`to_bytes_rfc4491`](Self::to_bytes_rfc4491)
+    /// and [`to_bytes_kz`](Self::to_bytes_kz)).
     pub fn to_bytes_gost(&self, curve: &Curve) -> Vec<u8> {
         let len = curve.coordinate_len();
         let mut out = to_be_bytes(&self.r, len);
@@ -53,21 +54,25 @@ impl Signature {
         Ok(sig)
     }
 
-    /// Encode as used in X.509 `signatureValue` and CMS `SignerInfo.signature`:
-    /// **`s` first, then `r`**, each a big-endian integer of
-    /// `curve.coordinate_len()` bytes (RFC 4490 §2.2.2, RFC 4491 §2.2.2,
-    /// RFC 9215 §2).  The result is the raw content of the X.509
-    /// `BIT STRING` / CMS `OCTET STRING` (no DER wrapping).
-    pub fn to_bytes_x509(&self, curve: &Curve) -> Vec<u8> {
+    /// Encode as specified for X.509 `signatureValue` and CMS
+    /// `SignerInfo.signature` by the Russian profile: **`s` first, then
+    /// `r`**, each a big-endian integer of `curve.coordinate_len()` bytes
+    /// (RFC 4490 §2.2.2, RFC 4491 §2.2.2, RFC 9215 §2).  This is what
+    /// CryptoPro CSP and gost-engine produce.  The result is the raw content
+    /// of the `BIT STRING` / `OCTET STRING` (no DER wrapping).
+    ///
+    /// **Certificates issued by the Kazakhstan NCA do not use this layout**;
+    /// see [`to_bytes_kz`](Self::to_bytes_kz).
+    pub fn to_bytes_rfc4491(&self, curve: &Curve) -> Vec<u8> {
         let len = curve.coordinate_len();
         let mut out = to_be_bytes(&self.s, len);
         out.extend(to_be_bytes(&self.r, len));
         out
     }
 
-    /// Decode the X.509 / CMS form `s ‖ r` (see
-    /// [`to_bytes_x509`](Self::to_bytes_x509)).
-    pub fn from_bytes_x509(curve: &Curve, bytes: &[u8]) -> Result<Self> {
+    /// Decode the RFC 4491 / RFC 9215 form `s ‖ r` (big-endian each); see
+    /// [`to_bytes_rfc4491`](Self::to_bytes_rfc4491).
+    pub fn from_bytes_rfc4491(curve: &Curve, bytes: &[u8]) -> Result<Self> {
         let len = curve.coordinate_len();
         check_len(bytes, 2 * len)?;
         let sig = Signature {
@@ -78,15 +83,28 @@ impl Signature {
         Ok(sig)
     }
 
-    /// Alias of [`to_bytes_x509`](Self::to_bytes_x509) (CMS uses the same
-    /// layout).
-    pub fn to_bytes_cms(&self, curve: &Curve) -> Vec<u8> {
-        self.to_bytes_x509(curve)
+    /// Encode as found in X.509 certificates issued by the Kazakhstan NCA
+    /// (НУЦ РК / KalkanCrypt): **`r` first, then `s`, each little-endian**,
+    /// `curve.coordinate_len()` bytes.  Byte for byte this is the reversal
+    /// of the RFC 4491 layout (`reverse(s_BE ‖ r_BE) = r_LE ‖ s_LE`).
+    ///
+    /// Established empirically: the self-signature of
+    /// `root_gost_2022.cer` and the signature of `nca_gost_2022.cer`
+    /// (both from <https://pki.gov.kz/cert/>) verify only with this layout;
+    /// see `tests/nca_certs.rs`.  No RFC describes it.
+    pub fn to_bytes_kz(&self, curve: &Curve) -> Vec<u8> {
+        let mut out = self.to_bytes_rfc4491(curve);
+        out.reverse();
+        out
     }
 
-    /// Alias of [`from_bytes_x509`](Self::from_bytes_x509).
-    pub fn from_bytes_cms(curve: &Curve, bytes: &[u8]) -> Result<Self> {
-        Self::from_bytes_x509(curve, bytes)
+    /// Decode the NCA layout `r_LE ‖ s_LE`; see [`to_bytes_kz`](Self::to_bytes_kz).
+    pub fn from_bytes_kz(curve: &Curve, bytes: &[u8]) -> Result<Self> {
+        let len = curve.coordinate_len();
+        check_len(bytes, 2 * len)?;
+        let mut rev = bytes.to_vec();
+        rev.reverse();
+        Self::from_bytes_rfc4491(curve, &rev)
     }
 
     fn validate(&self, curve: &Curve) -> Result<()> {
@@ -301,7 +319,9 @@ pub fn sign<R: CryptoRng + ?Sized>(
 }
 
 /// Sign a digest with a deterministic nonce derived from `(d, e)` by an
-/// RFC 6979-style HMAC-DRBG over Streebog (see [`crate::det`]).
+/// RFC 6979-style HMAC-DRBG over Streebog-256/512 (not an interoperability
+/// format: no standard defines RFC 6979 for GOST; it only removes the
+/// dependency on the system RNG).
 pub fn sign_deterministic(curve: &Curve, key: &SecretKey, digest: &[u8]) -> Signature {
     let e = curve.e_from_digest(digest);
     let mut gen = NonceGen::new(curve, key.scalar(), &e);

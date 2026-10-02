@@ -18,16 +18,25 @@ fn sign_verify_random_keys_all_curves() {
             assert_eq!(digest.len(), nc.hash_alg().output_len());
 
             let sig = sign(c, &key, &digest, &mut rng).unwrap();
-            assert!(verify(c, &pk, &digest, &sig), "{nc:?}: valid signature verifies");
+            assert!(
+                verify(c, &pk, &digest, &sig),
+                "{nc:?}: valid signature verifies"
+            );
 
             // Negative: other key.
             let other = SecretKey::random(c, &mut rng).unwrap().public_key(c);
-            assert!(!verify(c, &other, &digest, &sig), "{nc:?}: wrong key rejected");
+            assert!(
+                !verify(c, &other, &digest, &sig),
+                "{nc:?}: wrong key rejected"
+            );
 
             // Negative: tampered digest.
             let mut bad = digest.clone();
             bad[0] ^= 1;
-            assert!(!verify(c, &pk, &bad, &sig), "{nc:?}: tampered digest rejected");
+            assert!(
+                !verify(c, &pk, &bad, &sig),
+                "{nc:?}: tampered digest rejected"
+            );
 
             // Negative: tampered signature.
             let mut sig_r = sig;
@@ -36,24 +45,49 @@ fn sign_verify_random_keys_all_curves() {
             let mut sig_s = sig;
             sig_s.s = sig_s.s.wrapping_sub(&U512::ONE);
             assert!(!verify(c, &pk, &digest, &sig_s));
-            assert!(!verify(c, &pk, &digest, &Signature { r: U512::ZERO, s: sig.s }));
-            assert!(!verify(c, &pk, &digest, &Signature { r: *c.order(), s: sig.s }));
+            assert!(!verify(
+                c,
+                &pk,
+                &digest,
+                &Signature {
+                    r: U512::ZERO,
+                    s: sig.s
+                }
+            ));
+            assert!(!verify(
+                c,
+                &pk,
+                &digest,
+                &Signature {
+                    r: *c.order(),
+                    s: sig.s
+                }
+            ));
 
             // Encodings round-trip.
-            let x509 = sig.to_bytes_x509(c);
-            assert_eq!(x509.len(), 2 * c.coordinate_len());
-            assert_eq!(Signature::from_bytes_x509(c, &x509).unwrap(), sig);
+            let rfc = sig.to_bytes_rfc4491(c);
+            assert_eq!(rfc.len(), 2 * c.coordinate_len());
+            assert_eq!(Signature::from_bytes_rfc4491(c, &rfc).unwrap(), sig);
             let gost = sig.to_bytes_gost(c);
             assert_eq!(Signature::from_bytes_gost(c, &gost).unwrap(), sig);
-            assert_eq!(&gost[..c.coordinate_len()], &x509[c.coordinate_len()..]);
-            assert!(Signature::from_bytes_x509(c, &x509[1..]).is_err());
+            assert_eq!(&gost[..c.coordinate_len()], &rfc[c.coordinate_len()..]);
+            assert!(Signature::from_bytes_rfc4491(c, &rfc[1..]).is_err());
+            let kz = sig.to_bytes_kz(c);
+            let mut rfc_rev = rfc.clone();
+            rfc_rev.reverse();
+            assert_eq!(kz, rfc_rev);
+            assert_eq!(Signature::from_bytes_kz(c, &kz).unwrap(), sig);
+            assert!(Signature::from_bytes_kz(c, &vec![0u8; 2 * c.coordinate_len()]).is_err());
 
             let pkb = pk.to_bytes_x509(c);
             assert_eq!(pkb.len(), 2 * c.coordinate_len());
             assert_eq!(PublicKey::from_bytes_x509(c, &pkb).unwrap(), pk);
             let mut pkb_bad = pkb.clone();
             pkb_bad[0] ^= 1;
-            assert!(PublicKey::from_bytes_x509(c, &pkb_bad).is_err(), "off-curve point rejected");
+            assert!(
+                PublicKey::from_bytes_x509(c, &pkb_bad).is_err(),
+                "off-curve point rejected"
+            );
 
             let skb = key.to_bytes_be(c);
             let key2 = SecretKey::from_bytes_be(c, &skb).unwrap();

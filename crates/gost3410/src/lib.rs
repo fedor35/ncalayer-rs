@@ -32,10 +32,11 @@
 //!
 //! | Object | Encoding | Reference |
 //! |---|---|---|
-//! | digest → integer `e` | the digest bytes **as produced by the `streebog`/`gost94` crates** (which match CryptoPro / gost-engine output) are read as a **little-endian** integer | RFC 4490 §2.2.1 (digest is "little-endian"), verified against an NCA root certificate |
-//! | signature in X.509 / CMS | `s ‖ r`, each big-endian, fixed width (32 or 64 bytes) | RFC 4491 §2.2.2, RFC 9215 §2 |
-//! | signature in the GOST text | `r ‖ s`, each big-endian | GOST R 34.10-2012 §6.1 step 7 (`ζ = r̄ ‖ s̄`) |
-//! | public key in X.509 | `x ‖ y`, each **little-endian** | RFC 4491 §2.3.2, RFC 9215 §4.3 |
+//! | digest → integer `e` | the digest bytes **as produced by the `streebog`/`gost94` crates** (which match CryptoPro / gost-engine / KalkanCrypt output) are read as a **little-endian** integer | RFC 4490 §2.2.1 ("little-endian" digest); verified against NCA certificates |
+//! | signature in the GOST text | `r ‖ s`, each big-endian | GOST R 34.10-2012 §6.1 step 7 (`ζ = r̄ ‖ s̄`); [`Signature::to_bytes_gost`] |
+//! | signature in X.509 / CMS, Russian profile | `s ‖ r`, each big-endian, fixed width (32 or 64 bytes) | RFC 4490 §2.2.2, RFC 4491 §2.2.2, RFC 9215 §2; [`Signature::to_bytes_rfc4491`] |
+//! | signature in X.509 issued by the Kazakhstan NCA | `r ‖ s`, each **little-endian** — the byte reversal of the RFC layout | no RFC; verified on `root_gost_2022.cer` / `nca_gost_2022.cer`; [`Signature::to_bytes_kz`] |
+//! | public key in X.509 | `x ‖ y`, each **little-endian** | RFC 4491 §2.3.2, RFC 9215 §4.3; [`PublicKey::to_bytes_x509`] — the NCA follows this one |
 //!
 //! [RFC 7091]: https://www.rfc-editor.org/rfc/rfc7091
 
@@ -52,9 +53,7 @@ pub use crypto_bigint::U512;
 pub use curve::{AffinePoint, Curve, NamedCurve};
 pub use error::Error;
 pub use hash::{digest_for_curve, HashAlg};
-pub use sign::{
-    sign, sign_deterministic, sign_with_k, verify, PublicKey, SecretKey, Signature,
-};
+pub use sign::{sign, sign_deterministic, sign_with_k, verify, PublicKey, SecretKey, Signature};
 
 /// Convenience alias.
 pub type Result<T> = core::result::Result<T, Error>;
