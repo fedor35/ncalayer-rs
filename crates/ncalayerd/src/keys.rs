@@ -29,7 +29,7 @@ impl Settings {
 }
 
 pub enum Selection {
-    Chosen(Entry),
+    Chosen(Box<Entry>),
     Cancelled,
 }
 
@@ -82,7 +82,7 @@ pub async fn select_entry(ui: &dyn Ui, settings_path: &Path, storage: &str, key_
         .position(|e| wanted.is_none_or(|w| e.cert.key_usage_type() == w || e.cert.extended_key_usage().map(|v| v.len() > 1).unwrap_or(false)))
         .or_else(|| (!entries.is_empty()).then_some(0));
     match idx {
-        Some(i) => Ok(Selection::Chosen(entries.swap_remove(i))),
+        Some(i) => Ok(Selection::Chosen(Box::new(entries.swap_remove(i)))),
         None => {
             ui.error("В хранилище нет подходящих ключей").await;
             anyhow::bail!("EMPTY_KEY_LIST")
