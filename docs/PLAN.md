@@ -92,7 +92,7 @@ GUI: Slint (уже знаком по vega-bs-config, рендерится под
 |---|---|---|
 | 0 ✅ 02.10 | Скелет: wss на 13579 с локальным CA, фильтр 127.0.0.1, version/heartbeat, MODULE_NOT_FOUND | `ncalayer-client.js` подключается из Firefox, mocker-тесты sigex проходят |
 | 1 ✅ 02.10 | `gost3410`: подпись/проверка 512-A и 256-A, Стрибог; RSA через `rsa` | тест-векторы RFC 7836; проверка подписи настоящего серта НУЦ (цепочка ҰКО GOST 2022) |
-| 2 ✅ 02.10 (боевые ключи не прогнаны) | `kz-pki`: чтение p12 НУЦ (3DES/RC2-40 PBE), KeyInfo как у оригинала, выбор по keyType/EKU | `getKeyInfo` отдаёт байт-в-байт такой же JSON, как Java (сверка на своих ключах) |
+| 2 ✅ 02.10 (проверен на боевом GOST512 Фёдора) | `kz-pki`: чтение p12 НУЦ (3DES/RC2-40 PBE), KeyInfo как у оригинала, выбор по keyType/EKU | `getKeyInfo` отдаёт байт-в-байт такой же JSON, как Java (сверка на своих ключах) |
 | 3 | `kz-cms`: CAdES-BES attached/detached, +TSP → CAdES-T | подпись проверяется NCANode/Kalkan и принимается cabinet.stat.gov.kz (там CMS) |
 | 4 | commonUtils полностью + basics.sign(cms) | сдача формы на knp.kgd.gov.kz / cabinet.salyk.kz реальным ключом |
 | 5 | `kz-xmldsig` + signXml/signXmls + basics.sign(xml) | egov.kz авторизация и подпись заявления |
