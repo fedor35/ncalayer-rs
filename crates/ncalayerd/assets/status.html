@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><title>ncalayer-rs</title>
+<style>body{font:16px/1.5 system-ui,sans-serif;max-width:40em;margin:3em auto;padding:0 1em;color:#222}
+.ok{color:#2a7}.bad{color:#c33}code{background:#eee;padding:0 .3em}</style></head>
+<body><h1>ncalayer-rs {{version}}</h1>
+<p>Сервер работает на <code>wss://127.0.0.1:{{port}}/</code>.</p>
+<p id="st">Проверяю WebSocket…</p>
+<script>
+const s=new WebSocket('wss://127.0.0.1:{{port}}/');const el=document.getElementById('st');
+s.onmessage=e=>{el.className='ok';el.textContent='WebSocket отвечает: '+e.data;s.close();};
+s.onerror=()=>{el.className='bad';el.textContent='WebSocket не открылся — браузер не доверяет сертификату.';};
+</script>
+<p>Если страница открылась без предупреждения о сертификате, сайты (egov.kz, salyk.kz) смогут подключиться.</p>
+</body></html>

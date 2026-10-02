@@ -1,0 +1,25 @@
+[package]
+name = "ncalayerd"
+description = "Открытая замена NCALayer: wss-сервер 127.0.0.1:13579 для подписи ЭЦП НУЦ РК"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+nca-protocol = { path = "../nca-protocol" }
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "fs", "process", "signal"] }
+axum = { version = "0.8", features = ["ws"] }
+axum-server = { version = "0.8", features = ["tls-rustls"] }
+futures-util = "0.3"
+rcgen = { version = "0.14", features = ["pem", "x509-parser"] }
+x509-parser = "0.18"
+clap = { version = "4", features = ["derive", "env"] }
+directories = "6"
+time = "0.3"

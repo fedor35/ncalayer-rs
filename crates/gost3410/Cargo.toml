@@ -1,0 +1,24 @@
+[package]
+name = "gost3410"
+description = "Pure-Rust GOST R 34.10-2012 (RFC 7091) digital signatures over the curves used by the Kazakhstan NCA (RFC 7836 paramSets)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+keywords = ["gost", "gost3410", "streebog", "ecc", "kazakhstan"]
+categories = ["cryptography"]
+
+[dependencies]
+crypto-bigint = { version = "0.7", default-features = false, features = ["rand_core", "subtle", "zeroize"] }
+rand_core = "0.10"
+streebog = "0.11"
+gost94 = "0.11"
+hmac = "0.13"
+digest = "0.11"
+subtle = "2"
+zeroize = "1"
+
+[dev-dependencies]
+rand = "0.10"
+hex = "0.4"
