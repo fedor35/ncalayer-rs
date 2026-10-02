@@ -11,6 +11,7 @@ authors.workspace = true
 nca-protocol = { path = "../nca-protocol" }
 kz-pki = { path = "../kz-pki" }
 kz-cms = { path = "../kz-cms" }
+kz-xmldsig = { path = "../kz-xmldsig" }
 rand = "0.10"
 base64 = "0.22"
 async-trait = "0.1"

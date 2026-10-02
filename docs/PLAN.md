@@ -94,8 +94,8 @@ GUI: Slint (уже знаком по vega-bs-config, рендерится под
 | 1 ✅ 02.10 | `gost3410`: подпись/проверка 512-A и 256-A, Стрибог; RSA через `rsa` | тест-векторы RFC 7836; проверка подписи настоящего серта НУЦ (цепочка ҰКО GOST 2022) |
 | 2 ✅ 02.10 (проверен на боевом GOST512 Фёдора) | `kz-pki`: чтение p12 НУЦ (3DES/RC2-40 PBE), KeyInfo как у оригинала, выбор по keyType/EKU | `getKeyInfo` отдаёт байт-в-байт такой же JSON, как Java (сверка на своих ключах) |
 | 3 ✅ 02.10 | `kz-cms`: CAdES-BES attached/detached, +TSP → CAdES-T | подпись проверяется NCANode/Kalkan и принимается cabinet.stat.gov.kz (там CMS) |
-| 4 ◐ 02.10 (CMS + basics.sign(cms) готовы; **cabinet.stat.gov.kz принял подпись боевым ключом 02.10**; signXml ждёт этап 5) | commonUtils полностью + basics.sign(cms) | сдача формы на knp.kgd.gov.kz / cabinet.salyk.kz реальным ключом |
-| 5 | `kz-xmldsig` + signXml/signXmls + basics.sign(xml) | egov.kz авторизация и подпись заявления |
+| 4 ✅ 02.10 (**cabinet.stat.gov.kz принял подпись боевым ключом**; все методы commonUtils кроме createCAdESFromFile-вариантов с токенами) | commonUtils полностью + basics.sign(cms) | сдача формы на knp.kgd.gov.kz / cabinet.salyk.kz реальным ключом |
+| 5 ✅ 02.10 (Kalkan VALID для enveloped/по Id/signXmls/basics; egov.kz живьём не проверен) | `kz-xmldsig` + signXml/signXmls + basics.sign(xml) | egov.kz авторизация и подпись заявления |
 | 6 | GUI: диалоги Slint, трей, локаль, настройки (прокси, недавние ключи как в settings.json) | работает в Plasma Wayland и GNOME без X11 |
 | 7 | Упаковка: PKGBUILD/AUR, deb, AppImage; systemd --user unit; установка CA | «один пакет и работает» на Arch и Ubuntu |
 | 8 | Позже: legacy ГОСТ-2004 (S-box сверить), токены по PC/SC, Windows/macOS, generateCsr/importCertificate | — |
@@ -162,3 +162,6 @@ documentolog, idocs…) — список `https://pki.gov.kz/docs/nl_ru/bundles/
   applyCAdEST добавляет к готовому CMS. basics.sign ставит TSA только при tsaProfile.
 - TSA НУЦ (http://tsp.pki.gov.kz, политика 1.2.398.3.3.2.6.4) выдаёт токен нашему запросу; Kalkan принимает CAdES-T.
 - Временный UI до Slint: kdialog/zenity через трейт `Ui`; `NCALAYER_TEST_KEY=path:pw` — headless для тестов.
+- XMLDSig: SignatureValue для ГОСТ тоже r‖s little-endian. Enveloped = inclusive C14N 1.0, Reference URI="" с трансформами
+  enveloped + c14n#WithComments; по Id = exclusive C14N, Reference "#Id", элемент обязан иметь атрибут `Id`.
+  DigestValue совпадают с Santuario побайтно. Долг: raw sign/verify продублированы в kz-xmldsig (в kz-cms они pub(crate)).

@@ -1,0 +1,24 @@
+[package]
+name = "kz-xmldsig"
+description = "XMLDSig (enveloped and detached-by-Id) with GOST R 34.10-2015/2004 and RSA signers plus Canonical XML 1.0 / Exclusive C14N for an open NCALayer replacement (Kazakhstan NCA)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+keywords = ["xmldsig", "c14n", "gost", "kazakhstan", "ncalayer"]
+categories = ["cryptography"]
+
+[dependencies]
+thiserror = { workspace = true }
+gost3410 = { path = "../gost3410" }
+kz-pki = { path = "../kz-pki" }
+kz-cms = { path = "../kz-cms" }
+roxmltree = "0.20"
+base64 = "0.22"
+rsa = { version = "0.10.0-rc.18", features = ["sha2"] }
+sha2 = "0.11"
+rand_core = "0.10"
+
+[dev-dependencies]
+rand = "0.10"

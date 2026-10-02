@@ -148,6 +148,10 @@ async fn common_utils(req: &Request, shared: &Shared) -> Value {
         // (storageName, keyType, filePath, attach)
         "createCMSSignatureFromFile" => cms_common(req, shared, CmsKind::File { attached: flag(req, 3), timestamp: true }).await,
         "createCAdESFromFile" => cms_common(req, shared, CmsKind::File { attached: flag(req, 3), timestamp: false }).await,
+        // (storageName, keyType, xml, tbsElementXPath?, signatureParentElementXPath?)
+        "signXml" => xml_common(req, shared, false).await,
+        // (storageName, keyType, [xml…], tbsElementXPath?, signatureParentElementXPath?)
+        "signXmls" => xml_common(req, shared, true).await,
         // (storageName, keyType, base64 cms)
         "applyCAdEST" => {
             let cms = req.arg_str(2).unwrap_or("").to_string();
@@ -160,6 +164,43 @@ async fn common_utils(req: &Request, shared: &Shared) -> Value {
         other => CommonResponse::error(format!("Method {other} is not implemented yet"), uuid),
     };
     serde_json::to_value(resp).expect("serializable")
+}
+
+/// `signXml` / `signXmls`: enveloped signature, or detached-by-Id when XPaths are given.
+async fn xml_common(req: &Request, shared: &Shared, many: bool) -> CommonResponse {
+    let uuid = req.uuid.clone();
+    let storage = req.arg_str(0).unwrap_or("PKCS12");
+    let key_type = req.arg_str(1).and_then(KeyType::parse);
+    let xmls: Vec<String> = if many {
+        match req.args.get(2) {
+            Some(Value::Array(v)) => v.iter().filter_map(|x| x.as_str().map(str::to_string)).collect(),
+            _ => return CommonResponse::error("xmls must be an array", uuid),
+        }
+    } else {
+        vec![req.arg_str(2).unwrap_or("").to_string()]
+    };
+    let tbs = req.arg_str(3).filter(|s| !s.is_empty()).map(str::to_string);
+    let parent = req.arg_str(4).filter(|s| !s.is_empty()).map(str::to_string);
+    let entry = match keys::select_entry(shared.ui.as_ref(), &shared.settings_path, storage, key_type).await {
+        Ok(Selection::Chosen(e)) => e,
+        Ok(Selection::Cancelled) => return CommonResponse::canceled(uuid),
+        Err(e) => return CommonResponse::error(e.to_string(), uuid),
+    };
+    let r = tokio::task::spawn_blocking(move || -> anyhow::Result<Vec<String>> {
+        let mut rng = rand::rng();
+        xmls.iter()
+            .map(|x| match (&tbs, &parent) {
+                (Some(t), Some(p)) => Ok(kz_xmldsig::sign_by_id(&entry, x, t, p, &mut rng)?),
+                _ => Ok(kz_xmldsig::sign_enveloped(&entry, x, &mut rng)?),
+            })
+            .collect()
+    })
+    .await;
+    match r {
+        Ok(Ok(mut out)) => CommonResponse::ok(if many { json!(out) } else { Value::String(out.remove(0)) }, uuid),
+        Ok(Err(e)) => CommonResponse::error(e.to_string(), uuid),
+        Err(e) => CommonResponse::error(e.to_string(), uuid),
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -228,9 +269,10 @@ async fn basics(req: &Request, shared: &Shared) -> Value {
 async fn basics_sign(req: &Request, shared: &Shared) -> BasicsResponse {
     let a = &req.args;
     let format = a.get("format").and_then(Value::as_str).unwrap_or("cms");
-    if format != "cms" {
-        return BasicsResponse::error(BasicsFailure::InvalidSigningParams, format!("format {format} is not supported yet"));
+    if format != "cms" && format != "xml" {
+        return BasicsResponse::error(BasicsFailure::InvalidSigningParams, format!("format {format} is not supported"));
     }
+    let is_xml = format == "xml";
     let sp = a.get("signingParams").cloned().unwrap_or(Value::Null);
     let decode = sp.get("decode").and_then(Value::as_bool).unwrap_or(false);
     let attached = sp.get("encapsulate").and_then(Value::as_bool).unwrap_or(false);
@@ -256,6 +298,13 @@ async fn basics_sign(req: &Request, shared: &Shared) -> BasicsResponse {
     let cert_pem = entry.cert.pem().unwrap_or_default();
     let r = tokio::task::spawn_blocking(move || -> anyhow::Result<Vec<String>> {
         let mut out = Vec::new();
+        if is_xml {
+            let mut rng = rand::rng();
+            for item in items {
+                out.push(kz_xmldsig::sign_enveloped(&entry, &item, &mut rng)?);
+            }
+            return Ok(out);
+        }
         for item in items {
             // Base64 input is the wire format; `decode` means "sign the decoded bytes", otherwise the text itself.
             let data = if decode || digested { cms_api::decode_b64(&item)? } else { item.into_bytes() };
