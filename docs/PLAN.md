@@ -27,7 +27,7 @@ keyType: `AUTHENTICATION` / `SIGNATURE`. Пароль от ключа запра
 
 **TLS на 13579.** Сертификат `CN=127.0.0.1, O=ҰКО, C=KZ` (RSA-2048, SAN localhost/127.0.0.1) выдан
 «ҰКО (RSA) 2022» ← корень «НЕГІЗГІ КО (RSA)». Ключ и цепочка вшиты в бандл websocket
-(`keystore.jks`, пароль `nb1B3dau`, alias `ncalayer`), ротируется раз в ~год через обновление бандла
+(`keystore.jks` с известным паролем, alias `ncalayer`), ротируется раз в ~год через обновление бандла
 (текущий до 03.04.2027). Браузер доверяет корню НУЦ, который NCALayer ставит в NSS (`certutil`).
 Варианты для нас: (а) переиспользовать ключ из бандла — нулевая настройка у пользователя, но чужой ключ и
 зависимость от ротации; (б) свой локальный CA + серт на 127.0.0.1, ставим в NSS/системное хранилище сами
@@ -92,7 +92,7 @@ GUI: Slint (уже знаком по vega-bs-config, рендерится под
 |---|---|---|
 | 0 ✅ 02.10 | Скелет: wss на 13579 с локальным CA, фильтр 127.0.0.1, version/heartbeat, MODULE_NOT_FOUND | `ncalayer-client.js` подключается из Firefox, mocker-тесты sigex проходят |
 | 1 ✅ 02.10 | `gost3410`: подпись/проверка 512-A и 256-A, Стрибог; RSA через `rsa` | тест-векторы RFC 7836; проверка подписи настоящего серта НУЦ (цепочка ҰКО GOST 2022) |
-| 2 ✅ 02.10 (проверен на боевом GOST512 Фёдора) | `kz-pki`: чтение p12 НУЦ (3DES/RC2-40 PBE), KeyInfo как у оригинала, выбор по keyType/EKU | `getKeyInfo` отдаёт байт-в-байт такой же JSON, как Java (сверка на своих ключах) |
+| 2 ✅ 02.10 (проверен на боевом GOST512) | `kz-pki`: чтение p12 НУЦ (3DES/RC2-40 PBE), KeyInfo как у оригинала, выбор по keyType/EKU | `getKeyInfo` отдаёт байт-в-байт такой же JSON, как Java (сверка на своих ключах) |
 | 3 ✅ 02.10 | `kz-cms`: CAdES-BES attached/detached, +TSP → CAdES-T | подпись проверяется NCANode/Kalkan и принимается cabinet.stat.gov.kz (там CMS) |
 | 4 ✅ 02.10 (**cabinet.stat.gov.kz принял подпись боевым ключом**; все методы commonUtils кроме createCAdESFromFile-вариантов с токенами) | commonUtils полностью + basics.sign(cms) | сдача формы на knp.kgd.gov.kz / cabinet.salyk.kz реальным ключом |
 | 5 ✅ 03.10 (**egov.kz: вход боевым ключом через basics.sign(xml) сработал**) | `kz-xmldsig` + signXml/signXmls + basics.sign(xml) | egov.kz авторизация и подпись заявления |
@@ -121,7 +121,7 @@ GUI: Slint (уже знаком по vega-bs-config, рендерится под
    - `ui-slint` (по умолчанию): Slint с Qt-бэкендом (на Plasma — стиль и тема KDE), трей через
      StatusNotifierItem (`ksni`), файловые диалоги через XDG-портал (`ashpd`). Fallback — winit-бэкенд.
    - `ui-syngui`: фронтенд на [syngui](https://github.com/VitaminDB/syngui) (Rust, retained-mode, wgpu;
-     проект коллеги Фёдора, MIT/Apache-2.0). Боевой кейс для фреймворка; если потянет трей и портал-диалоги —
+     проект коллеги автора, MIT/Apache-2.0). Боевой кейс для фреймворка; если потянет трей и портал-диалоги —
      кандидат в основной. Риск: нестабильный API, зависимость от Vulkan/GL-драйвера на машинах без GPU.
 
 ## 5. Сторонние модули (bundles)
