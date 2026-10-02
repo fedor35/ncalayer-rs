@@ -121,6 +121,15 @@ async fn common_utils(req: &Request, shared: &Shared) -> Value {
         // Hardware tokens only; PKCS12 files are never listed here, as in Java.
         "getActiveTokens" => CommonResponse::ok(json!([]), uuid),
         "changeLocale" => CommonResponse::ok(Value::Null, uuid),
+        // (ext, currentDir) → absolute path or action.canceled
+        "showFileChooser" => {
+            let ext = req.arg_str(0).unwrap_or("ALL");
+            let dir = req.arg_str(1).filter(|d| !d.is_empty()).map(std::path::Path::new);
+            match shared.ui.choose_file(ext, dir).await {
+                Some(p) => CommonResponse::ok(Value::String(p.display().to_string()), uuid),
+                None => CommonResponse::canceled(uuid),
+            }
+        }
         "getKeyInfo" => {
             let storage = req.arg_str(0).unwrap_or("PKCS12");
             match keys::select_entry(shared.ui.as_ref(), &shared.settings_path, storage, None).await {

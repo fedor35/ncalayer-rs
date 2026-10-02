@@ -1,8 +1,35 @@
 # ncalayer-rs
 
-Открытая замена [NCALayer](https://pki.gov.kz) на Rust: локальный `wss://127.0.0.1:13579`, который
-сайты госорганов Казахстана используют для подписи ЭЦП НУЦ РК. Без Java, нативно под Wayland.
+Открытая замена [NCALayer](https://pki.gov.kz) на Rust: локальный сервис `wss://127.0.0.1:13579`, через который
+сайты госорганов Казахстана (egov.kz, cabinet.salyk.kz, stat.gov.kz, knp.kgd.gov.kz) подписывают документы
+ЭЦП НУЦ РК. Без Java, без Felix, нативно под Wayland.
 
-Статус: **разведка завершена, план в [docs/PLAN.md](docs/PLAN.md)**. Кода пока нет.
+## Статус
 
-Дисклеймер: проект не аффилирован с НУЦ РК / АО «НИТ». Криптографическая часть не сертифицирована по СТ РК 1073.
+| Готово | Проверено |
+|---|---|
+| wss-сервер, локальный CA с установкой в Firefox/Chromium | подключение из браузера |
+| ГОСТ Р 34.10-2012 на кривых НУЦ (`gost3410`) | тест-векторы стандарта, сертификаты НУЦ, Kalkan ⇄ Rust |
+| Чтение PKCS#12 НУЦ (`kz-pki`) | боевые контейнеры GOST512 |
+| CAdES-BES / CAdES-T с меткой TSA НУЦ (`kz-cms`) | DER байт-в-байт как Kalkan; **cabinet.stat.gov.kz принял подпись** |
+| `commonUtils`: getKeyInfo, createCMSSignature*/createCAdES*, applyCAdEST, showFileChooser; `basics.sign(cms)` | по сокету, оракул Kalkan |
+
+В работе: XMLDSig (`signXml`, `basics.sign(xml)` — нужен egov.kz), GUI на Slint/syngui (сейчас — kdialog/zenity),
+упаковка. План и факты — в [docs/PLAN.md](docs/PLAN.md).
+
+## Попробовать
+
+```
+cargo build --release -p ncalayerd
+./target/release/ncalayerd install-ca   # корень в NSS-базы Firefox/Chromium; перезапустить браузер
+./target/release/ncalayerd run          # оригинальный NCALayer должен быть выключен
+```
+Открыть `https://127.0.0.1:13579/` — страница покажет, отвечает ли WebSocket. Автозапуск: `packaging/ncalayerd.service`.
+
+## Эталон и тесты
+
+`tools/java-oracle` гоняет настоящий KalkanCrypt из установленного NCALayer (в репозиторий он не входит):
+генерирует тестовые ключи и подписи, проверяет наши. Фикстуры в `tests/fixtures` — тестовый ключ, не ЭЦП.
+
+Дисклеймер: проект не аффилирован с НУЦ РК / АО «НИТ». Криптография не сертифицирована по СТ РК 1073.
+Лицензия: MIT OR Apache-2.0.

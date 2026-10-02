@@ -1,0 +1,15 @@
+# Пользовательский юнит: systemctl --user enable --now ncalayerd
+# Диалоги выбора ключа идут через kdialog/zenity, поэтому юнит привязан к графической сессии.
+[Unit]
+Description=ncalayer-rs — локальный сервис подписи ЭЦП НУЦ РК (wss://127.0.0.1:13579)
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+ExecStart=/usr/bin/ncalayerd run
+Restart=on-failure
+RestartSec=3
+Environment=RUST_LOG=ncalayerd=info
+
+[Install]
+WantedBy=graphical-session.target

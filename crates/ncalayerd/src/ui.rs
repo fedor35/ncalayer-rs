@@ -11,6 +11,9 @@ use tokio::process::Command;
 pub trait Ui: Send + Sync {
     /// Let the user pick a PKCS#12 file. `None` = cancelled.
     async fn choose_key_file(&self, start_dir: Option<&Path>) -> Option<PathBuf>;
+    /// Generic file picker for `commonUtils.showFileChooser(ext, currentDir)`;
+    /// `ext` is a comma-separated list like `"pdf,xml"` or `"ALL"`.
+    async fn choose_file(&self, ext: &str, start_dir: Option<&Path>) -> Option<PathBuf>;
     /// Ask for the container password. `None` = cancelled.
     async fn ask_password(&self, title: &str, prompt: &str) -> Option<String>;
     /// Modal error.
@@ -80,6 +83,27 @@ impl Ui for DialogUi {
         if s.is_empty() { None } else { Some(PathBuf::from(s)) }
     }
 
+    async fn choose_file(&self, ext: &str, start_dir: Option<&Path>) -> Option<PathBuf> {
+        let dir = start_dir.map(|p| p.display().to_string()).unwrap_or_else(|| "~".into());
+        let globs: Vec<String> = if ext.trim().is_empty() || ext.eq_ignore_ascii_case("ALL") {
+            vec!["*".into()]
+        } else {
+            ext.split(',').map(|e| format!("*.{}", e.trim().trim_start_matches('.'))).collect()
+        };
+        let s = match self.tool {
+            Tool::Kdialog => {
+                let filter = format!("{}|Файлы ({})", globs.join(" "), globs.join(", "));
+                self.run(&["--title", "Выберите файл", "--getopenfilename", &dir, &filter]).await?
+            }
+            Tool::Zenity => {
+                let filename = format!("--filename={}/", dir.trim_end_matches('/'));
+                let filter = format!("--file-filter=Файлы | {}", globs.join(" "));
+                self.run(&["--file-selection", "--title=Выберите файл", &filename, &filter]).await?
+            }
+        };
+        if s.is_empty() { None } else { Some(PathBuf::from(s)) }
+    }
+
     async fn ask_password(&self, title: &str, prompt: &str) -> Option<String> {
         match self.tool {
             Tool::Kdialog => self.run(&["--title", title, "--password", prompt]).await,
@@ -121,6 +145,9 @@ impl FixedUi {
 #[async_trait]
 impl Ui for FixedUi {
     async fn choose_key_file(&self, _start_dir: Option<&Path>) -> Option<PathBuf> {
+        Some(self.file.clone())
+    }
+    async fn choose_file(&self, _ext: &str, _start_dir: Option<&Path>) -> Option<PathBuf> {
         Some(self.file.clone())
     }
     async fn ask_password(&self, _title: &str, _prompt: &str) -> Option<String> {
