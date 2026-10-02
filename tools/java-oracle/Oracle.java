@@ -159,6 +159,12 @@ public class Oracle {
     static void verifyXml(String file) throws Exception {
         String xml = new String(java.nio.file.Files.readAllBytes(java.nio.file.Paths.get(file)), "UTF-8");
         org.w3c.dom.Document doc = kz.gov.pki.provider.utils.XMLUtil.getDocument(xml);
+        // Detached-by-Id signatures (signXml with tbsElementXPath) need the Id attribute registered as an XML ID.
+        org.w3c.dom.NodeList all = doc.getElementsByTagName("*");
+        for (int i = 0; i < all.getLength(); i++) {
+            org.w3c.dom.Element el = (org.w3c.dom.Element) all.item(i);
+            if (el.hasAttribute("Id")) el.setIdAttribute("Id", true);
+        }
         try {
             kz.gov.pki.provider.utils.XMLUtil.verifyXmlSignature(doc, Security.getProvider(KalkanProvider.PROVIDER_NAME));
             System.out.println("VALID");
