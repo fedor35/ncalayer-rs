@@ -37,9 +37,8 @@ enum Cmd {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    tracing_subscriber::fmt()
-        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env().add_directive("ncalayerd=info".parse()?))
-        .init();
+    let filter = tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "ncalayerd=info".parse().expect("valid filter"));
+    tracing_subscriber::fmt().with_env_filter(filter).init();
     let cli = Cli::parse();
     let paths = ca::Paths::new(cli.data_dir)?;
     match cli.cmd.unwrap_or(Cmd::Run { port: 13579 }) {

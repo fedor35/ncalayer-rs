@@ -101,7 +101,8 @@ async fn dispatch(text: &str, origin: &str, shared: &Shared) -> Value {
         }
     };
     tracing::info!(%origin, module = %req.module, method = %req.method, "request");
-    match req.module.as_str() {
+    tracing::debug!(args = %redact(&req.args), "request args");
+    let reply = match req.module.as_str() {
         proto::MODULE_COMMON_UTILS => common_utils(&req, shared).await,
         proto::MODULE_BASICS => basics(&req, shared).await,
         proto::MODULE_ACCESSORY => accessory(&req),
@@ -112,6 +113,24 @@ async fn dispatch(text: &str, origin: &str, shared: &Shared) -> Value {
             shared.ui.notify("Модуль не поддерживается", &format!("{origin} запросил модуль {other}")).await;
             proto::module_not_found()
         }
+    };
+    tracing::info!(
+        code = %reply.get("code").map(|v| v.to_string()).unwrap_or_default(),
+        status = %reply.get("status").map(|v| v.to_string()).unwrap_or_default(),
+        message = %reply.get("message").and_then(serde_json::Value::as_str).unwrap_or(""),
+        "reply"
+    );
+    tracing::debug!(reply = %redact(&reply), "reply body");
+    reply
+}
+
+/// JSON for logs: long strings (documents, signatures, PEM) are replaced by their length.
+fn redact(v: &Value) -> Value {
+    match v {
+        Value::String(s) if s.len() > 120 => Value::String(format!("<{} chars: {}…>", s.len(), &s[..40.min(s.len())])),
+        Value::Array(a) => Value::Array(a.iter().map(redact).collect()),
+        Value::Object(o) => Value::Object(o.iter().map(|(k, v)| (k.clone(), redact(v))).collect()),
+        other => other.clone(),
     }
 }
 
@@ -278,6 +297,8 @@ async fn basics_sign(req: &Request, shared: &Shared) -> BasicsResponse {
     let attached = sp.get("encapsulate").and_then(Value::as_bool).unwrap_or(false);
     let digested = sp.get("digested").and_then(Value::as_bool).unwrap_or(false);
     let timestamp = sp.get("tsaProfile").map(|v| !v.is_null()).unwrap_or(false);
+    // Java: SigningResponse{result: String | String[]}; only with outputCert → RawSigningResult{signatures[], certificate}.
+    let output_cert = sp.get("outputCert").and_then(Value::as_bool).unwrap_or(false);
     let items: Vec<String> = match a.get("data") {
         Some(Value::String(s)) => vec![s.clone()],
         Some(Value::Array(v)) => v.iter().filter_map(|x| x.as_str().map(str::to_string)).collect(),
@@ -301,7 +322,9 @@ async fn basics_sign(req: &Request, shared: &Shared) -> BasicsResponse {
         if is_xml {
             let mut rng = rand::rng();
             for item in items {
-                out.push(kz_xmldsig::sign_enveloped(&entry, &item, &mut rng)?);
+                // Some portals send the XML base64-encoded with `decode: true`.
+                let xml = if decode { String::from_utf8(cms_api::decode_b64(&item)?)? } else { item };
+                out.push(kz_xmldsig::sign_enveloped(&entry, &xml, &mut rng)?);
             }
             return Ok(out);
         }
@@ -315,8 +338,13 @@ async fn basics_sign(req: &Request, shared: &Shared) -> BasicsResponse {
     .await;
     match r {
         Ok(Ok(mut sigs)) => {
-            let signatures = if single { Value::String(sigs.remove(0)) } else { json!(sigs) };
-            BasicsResponse::ok(json!({ "signatures": signatures, "certificate": cert_pem }))
+            if output_cert {
+                BasicsResponse::ok(json!({ "signatures": sigs, "certificate": cert_pem }))
+            } else if single {
+                BasicsResponse::ok(Value::String(sigs.remove(0)))
+            } else {
+                BasicsResponse::ok(json!(sigs))
+            }
         }
         Ok(Err(e)) => BasicsResponse::error(BasicsFailure::SigningFailure, e.to_string()),
         Err(e) => BasicsResponse::error(BasicsFailure::GeneralError, e.to_string()),
