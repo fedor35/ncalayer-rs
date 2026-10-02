@@ -1,4 +1,6 @@
 target/
 *.p12
+!tests/fixtures/*.p12
 *.jks
 tests/fixtures/private/
+tools/java-oracle/*.class
