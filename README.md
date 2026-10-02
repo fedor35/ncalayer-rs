@@ -14,7 +14,9 @@
 | CAdES-BES / CAdES-T с меткой TSA НУЦ (`kz-cms`) | DER байт-в-байт как Kalkan; **cabinet.stat.gov.kz принял подпись** |
 | `commonUtils`: getKeyInfo, createCMSSignature*/createCAdES*, applyCAdEST, showFileChooser; `basics.sign(cms)` | по сокету, оракул Kalkan |
 
-В работе: XMLDSig (`signXml`, `basics.sign(xml)` — нужен egov.kz), GUI на Slint/syngui (сейчас — kdialog/zenity),
+| XMLDSig (`kz-xmldsig`), `signXml`/`signXmls`, `basics.sign(xml)` | **egov.kz: вход боевым ключом** |
+
+В работе: GUI на Slint/syngui (сейчас — kdialog/zenity),
 упаковка. План и факты — в [docs/PLAN.md](docs/PLAN.md).
 
 ## Попробовать

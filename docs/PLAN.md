@@ -95,7 +95,7 @@ GUI: Slint (уже знаком по vega-bs-config, рендерится под
 | 2 ✅ 02.10 (проверен на боевом GOST512 Фёдора) | `kz-pki`: чтение p12 НУЦ (3DES/RC2-40 PBE), KeyInfo как у оригинала, выбор по keyType/EKU | `getKeyInfo` отдаёт байт-в-байт такой же JSON, как Java (сверка на своих ключах) |
 | 3 ✅ 02.10 | `kz-cms`: CAdES-BES attached/detached, +TSP → CAdES-T | подпись проверяется NCANode/Kalkan и принимается cabinet.stat.gov.kz (там CMS) |
 | 4 ✅ 02.10 (**cabinet.stat.gov.kz принял подпись боевым ключом**; все методы commonUtils кроме createCAdESFromFile-вариантов с токенами) | commonUtils полностью + basics.sign(cms) | сдача формы на knp.kgd.gov.kz / cabinet.salyk.kz реальным ключом |
-| 5 ✅ 02.10 (Kalkan VALID для enveloped/по Id/signXmls/basics; egov.kz живьём не проверен) | `kz-xmldsig` + signXml/signXmls + basics.sign(xml) | egov.kz авторизация и подпись заявления |
+| 5 ✅ 03.10 (**egov.kz: вход боевым ключом через basics.sign(xml) сработал**) | `kz-xmldsig` + signXml/signXmls + basics.sign(xml) | egov.kz авторизация и подпись заявления |
 | 6 | GUI: диалоги Slint, трей, локаль, настройки (прокси, недавние ключи как в settings.json) | работает в Plasma Wayland и GNOME без X11 |
 | 7 | Упаковка: PKGBUILD/AUR, deb, AppImage; systemd --user unit; установка CA | «один пакет и работает» на Arch и Ubuntu |
 | 8 | Позже: legacy ГОСТ-2004 (S-box сверить), токены по PC/SC, Windows/macOS, generateCsr/importCertificate | — |
