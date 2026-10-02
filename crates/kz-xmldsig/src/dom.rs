@@ -506,10 +506,14 @@ impl Document {
             .children
             .iter()
             .any(|&c| self.nodes[c].range.is_some());
+        // Like Santuario/DOM serialisation, the output starts at the first node after the
+        // XML declaration: portals embed the signed document into their own XML, where a
+        // declaration in the middle is a parse error ("ЭЦП недействительна" on egov.kz).
+        let prolog_end = prolog_end(src);
         let mut out = String::with_capacity(src.len() + text.len() + 16);
         if no_src_children && elem.ends_with("/>") && !elem.contains("</") {
             // `<a .../>` → `<a ...>text</a>`
-            out.push_str(&src[..range.end - 2]);
+            out.push_str(&src[prolog_end..range.end - 2]);
             out.push('>');
             out.push_str(text);
             out.push_str("</");
@@ -519,12 +523,43 @@ impl Document {
             let close = elem
                 .rfind("</")
                 .ok_or_else(|| Error::Structure("end tag not found".into()))?;
-            out.push_str(&src[..range.start + close]);
+            out.push_str(&src[prolog_end..range.start + close]);
             out.push_str(text);
             out.push_str(&src[range.start + close..range.end]);
         }
         out.push_str(&src[range.end..]);
         Ok(out)
+    }
+}
+
+/// Byte offset just past the XML declaration (and any BOM / whitespace around it), or 0.
+fn prolog_end(src: &str) -> usize {
+    let bom = if src.starts_with('\u{feff}') { 3 } else { 0 };
+    let rest = &src[bom..];
+    let ws = rest.len() - rest.trim_start().len();
+    let after_ws = &rest[ws..];
+    if let Some(stripped) = after_ws.strip_prefix("<?xml") {
+        if let Some(end) = stripped.find("?>") {
+            let decl_end = bom + ws + 5 + end + 2;
+            let tail = &src[decl_end..];
+            return decl_end + (tail.len() - tail.trim_start().len());
+        }
+    }
+    bom
+}
+
+#[cfg(test)]
+mod prolog_tests {
+    use super::prolog_end;
+
+    #[test]
+    fn declaration_is_skipped() {
+        let s = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<a/>";
+        assert_eq!(&s[prolog_end(s)..], "<a/>");
+        assert_eq!(prolog_end("<a/>"), 0);
+        assert_eq!(prolog_end("  <a/>"), 0);
+        let bom = "\u{feff}<?xml version=\"1.0\"?><a/>";
+        assert_eq!(&bom[prolog_end(bom)..], "<a/>");
     }
 }
 

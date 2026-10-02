@@ -42,6 +42,7 @@ public class Oracle {
             case "verifycms": verifyCms(a[1], a.length > 2 ? a[2] : null); break; // verifycms <file.cms> [detached-data-file]
             case "xml": xml(a[1], a[2], a[3]); break;             // xml <p12> <password> <outdir>  (XMLUtil.createXmlSignature)
             case "verifyxml": verifyXml(a[1]); break;             // verifyxml <file.xml>
+            case "signxml": signXmlFile(a[1], a[2], a[3], a[4]); break; // signxml <p12> <password> <in.xml> <out.xml>
             default: throw new IllegalArgumentException(a[0]);
         }
     }
@@ -154,6 +155,18 @@ public class Oracle {
         try (FileWriter f = new FileWriter(outdir + "/test_gost512.xml_xpath.xml")) { f.write(signed); }
         try (FileWriter f = new FileWriter(outdir + "/test_gost512.xml_xpath.input.xml")) { f.write(xml); }
         System.out.println("ok: xml_xpath " + signed.length() + " chars");
+    }
+
+    static void signXmlFile(String p12, String pw, String in, String out) throws Exception {
+        KeyStore ks = KeyStore.getInstance("PKCS12", KalkanProvider.PROVIDER_NAME);
+        try (FileInputStream f = new FileInputStream(p12)) { ks.load(f, pw.toCharArray()); }
+        String alias = ks.aliases().nextElement();
+        kz.gov.pki.provider.utils.model.SigningEntity se = new kz.gov.pki.provider.utils.model.SigningEntity(
+            (PrivateKey) ks.getKey(alias, pw.toCharArray()), Collections.singletonList((X509Certificate) ks.getCertificate(alias)));
+        String xml = new String(java.nio.file.Files.readAllBytes(java.nio.file.Paths.get(in)), "UTF-8");
+        String signed = kz.gov.pki.provider.utils.XMLUtil.createXmlSignature(se, xml, Security.getProvider(KalkanProvider.PROVIDER_NAME));
+        try (FileWriter f = new FileWriter(out)) { f.write(signed); }
+        System.out.println("ok " + signed.length());
     }
 
     static void verifyXml(String file) throws Exception {
