@@ -13,6 +13,19 @@ import kz.gov.pki.kalkan.jce.interfaces.ECPrivateKey;
 import kz.gov.pki.kalkan.jce.interfaces.ECPublicKey;
 import kz.gov.pki.kalkan.x509.X509V3CertificateGenerator;
 import kz.gov.pki.kalkan.jce.X509Principal;
+import kz.gov.pki.kalkan.asn1.DERSet;
+import kz.gov.pki.kalkan.asn1.DERObjectIdentifier;
+import kz.gov.pki.kalkan.asn1.cms.Attribute;
+import kz.gov.pki.kalkan.asn1.cms.AttributeTable;
+import kz.gov.pki.kalkan.asn1.ess.ESSCertIDv2;
+import kz.gov.pki.kalkan.asn1.ess.SigningCertificateV2;
+import kz.gov.pki.kalkan.asn1.pkcs.PKCSObjectIdentifiers;
+import kz.gov.pki.kalkan.asn1.x509.AlgorithmIdentifier;
+import kz.gov.pki.kalkan.jce.provider.cms.*;
+import java.security.cert.CertStore;
+import java.security.cert.CollectionCertStoreParameters;
+import java.util.Hashtable;
+import java.util.Collections;
 
 public class Oracle {
     static String hex(byte[] b) { StringBuilder s = new StringBuilder(); for (byte x : b) s.append(String.format("%02x", x)); return s.toString(); }
@@ -21,7 +34,13 @@ public class Oracle {
 
     public static void main(String[] a) throws Exception {
         Security.addProvider(new KalkanProvider());
-        if (a[0].equals("gen")) gen(a[1], a[2]); else verify(a[1], a[2], a[3]);
+        switch (a[0]) {
+            case "gen": gen(a[1], a[2]); break;
+            case "verify": verify(a[1], a[2], a[3]); break;
+            case "cms": cms(a[1], a[2], a[3]); break;          // cms <p12> <password> <outdir>
+            case "verifycms": verifyCms(a[1], a.length > 2 ? a[2] : null); break; // verifycms <file.cms> [detached-data-file]
+            default: throw new IllegalArgumentException(a[0]);
+        }
     }
 
     static void gen(String dir, String pw) throws Exception {
@@ -63,6 +82,48 @@ public class Oracle {
             f.println("cert_sig=" + hex(cert.getSignature()));
         }
         System.out.println("ok: " + dir + " sigalg=" + cert.getSigAlgOID() + " siglen=" + sig.length);
+    }
+
+    // Повторяет kz.gov.pki.provider.utils.CMSUtil.createCAdES из бандла NCALayer:
+    // BC-атрибуты по умолчанию (contentType, signingTime, messageDigest) + signingCertificateV2 (SHA-256).
+    static void cms(String p12, String pw, String outdir) throws Exception {
+        String msg = "ncalayer-rs test message";
+        KeyStore ks = KeyStore.getInstance("PKCS12", KalkanProvider.PROVIDER_NAME);
+        try (FileInputStream f = new FileInputStream(p12)) { ks.load(f, pw.toCharArray()); }
+        String alias = ks.aliases().nextElement();
+        PrivateKey key = (PrivateKey) ks.getKey(alias, pw.toCharArray());
+        X509Certificate cert = (X509Certificate) ks.getCertificate(alias);
+        for (boolean attached : new boolean[]{true, false}) {
+            Hashtable<DERObjectIdentifier, Attribute> attrs = new Hashtable<>();
+            byte[] certHash = MessageDigest.getInstance("SHA-256", KalkanProvider.PROVIDER_NAME).digest(cert.getEncoded());
+            ESSCertIDv2 essId = new ESSCertIDv2(new AlgorithmIdentifier(new DERObjectIdentifier("2.16.840.1.101.3.4.2.1")), certHash);
+            Attribute sc2 = new Attribute(PKCSObjectIdentifiers.id_aa_signingCertificateV2, new DERSet(new SigningCertificateV2(new ESSCertIDv2[]{essId})));
+            attrs.put(sc2.getAttrType(), sc2);
+            CMSSignedDataGenerator g = new CMSSignedDataGenerator();
+            g.addSigner(key, cert, CMSSignedDataGenerator.DIGEST_GOST3411_2015_512, new AttributeTable(attrs), null);
+            g.addCertificatesAndCRLs(CertStore.getInstance("Collection", new CollectionCertStoreParameters(Collections.singletonList(cert)), KalkanProvider.PROVIDER_NAME));
+            CMSSignedData sd = g.generate(new CMSProcessableByteArray(msg.getBytes("UTF-8")), attached, KalkanProvider.PROVIDER_NAME);
+            String name = outdir + "/test_gost512." + (attached ? "attached" : "detached") + ".cms";
+            try (FileOutputStream f = new FileOutputStream(name)) { f.write(sd.getEncoded()); }
+            System.out.println("ok: " + name + " " + sd.getEncoded().length + " bytes");
+        }
+        try (FileOutputStream f = new FileOutputStream(outdir + "/test_message.txt")) { f.write(msg.getBytes("UTF-8")); }
+    }
+
+    static void verifyCms(String file, String dataFile) throws Exception {
+        byte[] der = java.nio.file.Files.readAllBytes(java.nio.file.Paths.get(file));
+        CMSSignedData sd = dataFile == null ? new CMSSignedData(der)
+            : new CMSSignedData(new CMSProcessableByteArray(java.nio.file.Files.readAllBytes(java.nio.file.Paths.get(dataFile))), der);
+        CertStore cs = sd.getCertificatesAndCRLs("Collection", KalkanProvider.PROVIDER_NAME);
+        boolean all = true;
+        for (Object o : sd.getSignerInfos().getSigners()) {
+            SignerInformation si = (SignerInformation) o;
+            X509Certificate c = (X509Certificate) cs.getCertificates(si.getSID()).iterator().next();
+            boolean ok = si.verify(c, KalkanProvider.PROVIDER_NAME);
+            System.out.println("signer " + c.getSubjectDN() + " digest=" + si.getDigestAlgOID() + " enc=" + si.getEncryptionAlgOID() + " -> " + (ok ? "VALID" : "INVALID"));
+            all &= ok;
+        }
+        System.out.println(all ? "VALID" : "INVALID");
     }
 
     static void verify(String certPem, String msg, String sigHex) throws Exception {
