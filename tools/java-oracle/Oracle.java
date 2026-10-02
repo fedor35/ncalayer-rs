@@ -34,11 +34,14 @@ public class Oracle {
 
     public static void main(String[] a) throws Exception {
         Security.addProvider(new KalkanProvider());
+        kz.gov.pki.kalkan.xmldsig.KncaXS.loadXMLSecurity();
         switch (a[0]) {
             case "gen": gen(a[1], a[2]); break;
             case "verify": verify(a[1], a[2], a[3]); break;
             case "cms": cms(a[1], a[2], a[3]); break;          // cms <p12> <password> <outdir>
             case "verifycms": verifyCms(a[1], a.length > 2 ? a[2] : null); break; // verifycms <file.cms> [detached-data-file]
+            case "xml": xml(a[1], a[2], a[3]); break;             // xml <p12> <password> <outdir>  (XMLUtil.createXmlSignature)
+            case "verifyxml": verifyXml(a[1]); break;             // verifyxml <file.xml>
             default: throw new IllegalArgumentException(a[0]);
         }
     }
@@ -124,6 +127,44 @@ public class Oracle {
             all &= ok;
         }
         System.out.println(all ? "VALID" : "INVALID");
+    }
+
+    // Как signXml в NCALayer: kz.gov.pki.provider.utils.XMLUtil.createXmlSignature(SigningEntity, xml, provider)
+    static void xml(String p12, String pw, String outdir) throws Exception {
+        KeyStore ks = KeyStore.getInstance("PKCS12", KalkanProvider.PROVIDER_NAME);
+        try (FileInputStream f = new FileInputStream(p12)) { ks.load(f, pw.toCharArray()); }
+        String alias = ks.aliases().nextElement();
+        PrivateKey key = (PrivateKey) ks.getKey(alias, pw.toCharArray());
+        X509Certificate cert = (X509Certificate) ks.getCertificate(alias);
+        kz.gov.pki.provider.utils.model.SigningEntity se = new kz.gov.pki.provider.utils.model.SigningEntity(key, Collections.singletonList(cert));
+        java.security.Provider prov = Security.getProvider(KalkanProvider.PROVIDER_NAME);
+        String[][] cases = {
+            {"simple", "<root><a>1</a><b attr=\"x\">текст</b></root>"},
+            {"ns", "<?xml version=\"1.0\" encoding=\"UTF-8\"?><ns1:doc xmlns:ns1=\"urn:test\" id=\"d1\"><ns1:item>  spaced  </ns1:item><empty/></ns1:doc>"},
+        };
+        for (String[] c : cases) {
+            String signed = kz.gov.pki.provider.utils.XMLUtil.createXmlSignature(se, c[1], prov);
+            try (FileWriter f = new FileWriter(outdir + "/test_gost512.xml_" + c[0] + ".xml")) { f.write(signed); }
+            try (FileWriter f = new FileWriter(outdir + "/test_gost512.xml_" + c[0] + ".input.xml")) { f.write(c[1]); }
+            System.out.println("ok: xml_" + c[0] + " " + signed.length() + " chars");
+        }
+        // signXml with explicit tbsElementXPath / signatureParentElementXPath, as commonUtils.signXml does
+        String xml = "<root><a Id=\"part\"><x>1</x></a><b/></root>";
+        String signed = kz.gov.pki.provider.utils.XMLUtil.createXmlSignature(se, xml, "/root/a", "/root", prov);
+        try (FileWriter f = new FileWriter(outdir + "/test_gost512.xml_xpath.xml")) { f.write(signed); }
+        try (FileWriter f = new FileWriter(outdir + "/test_gost512.xml_xpath.input.xml")) { f.write(xml); }
+        System.out.println("ok: xml_xpath " + signed.length() + " chars");
+    }
+
+    static void verifyXml(String file) throws Exception {
+        String xml = new String(java.nio.file.Files.readAllBytes(java.nio.file.Paths.get(file)), "UTF-8");
+        org.w3c.dom.Document doc = kz.gov.pki.provider.utils.XMLUtil.getDocument(xml);
+        try {
+            kz.gov.pki.provider.utils.XMLUtil.verifyXmlSignature(doc, Security.getProvider(KalkanProvider.PROVIDER_NAME));
+            System.out.println("VALID");
+        } catch (Exception e) {
+            System.out.println("INVALID: " + e);
+        }
     }
 
     static void verify(String certPem, String msg, String sigHex) throws Exception {

@@ -1,0 +1,35 @@
+<root><a Id="part"><x>1</x></a><b/><ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
+<ds:SignedInfo>
+<ds:CanonicalizationMethod Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"/>
+<ds:SignatureMethod Algorithm="urn:ietf:params:xml:ns:pkigovkz:xmlsec:algorithms:gostr34102015-gostr34112015-512"/>
+<ds:Reference URI="#part">
+<ds:Transforms>
+<ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315#WithComments"/>
+</ds:Transforms>
+<ds:DigestMethod Algorithm="urn:ietf:params:xml:ns:pkigovkz:xmlsec:algorithms:gostr34112015-512"/>
+<ds:DigestValue>xn15kznLY7oPAScRZOlhSGI3n9EyYKF5gnIWMLwhCKTg4na9dgU0zaS1dlMKLCoJFwLzYXbgXC5E&#13;
+RM4kFDssag==</ds:DigestValue>
+</ds:Reference>
+</ds:SignedInfo>
+<ds:SignatureValue>
+Upm+I31lLQutGTudT/CxpUkWx1tavxVooFe4tEwzlwF0TA1x4KUKhoBE05emZILctsg6ofOY8aaq&#13;
+75VdR780Mx9uMJxzdt4mquBYB/od85oRRsDiK3q8ORktWFVMVMmSYvQ7TydhsdliJjj0d06Yf1VZ&#13;
+To0KCStIQeZfjpGn6rk=
+</ds:SignatureValue>
+<ds:KeyInfo>
+<ds:X509Data>
+<ds:X509Certificate>
+MIICBDCCAWygAwIBAgIGAaD9jFlmMA4GCiqDDgMKAQECAwIFADA+MRUwEwYDVQQDDAxURVNUIEdP&#13;
+U1Q1MTIxGDAWBgNVBAUTD0lJTjAwMDAwMDAwMDAwMDELMAkGA1UEBhMCS1owHhcNMjYxMDAxMTY1&#13;
+NzA4WhcNMjcxMDAyMTY1NzA4WjA+MRUwEwYDVQQDDAxURVNUIEdPU1Q1MTIxGDAWBgNVBAUTD0lJ&#13;
+TjAwMDAwMDAwMDAwMDELMAkGA1UEBhMCS1owgawwIwYJKoMOAwoBAQICMBYGCiqDDgMKAQECAgEG&#13;
+CCqDDgMKAQMDA4GEAASBgPqSKvGJWfn8gIQISLA6sTgSOXoC8nJO8xpnBeRRSdHEO5XsGTe6TISK&#13;
+v9HBNWkFr7mPlI8HzJDIABhg3//xySgEEjKtCGjqkhVxAxOshFdhysKg3h/ih/jHS00RuhB7psYH&#13;
+V16oBsfZAVHd+QtlKZQJ2cm8Cl8648sBChceteVFMA4GCiqDDgMKAQECAwIFAAOBgQAs9biaGZus&#13;
++yEzOKugxsXNMqPSEOKZDcCdPsWW6CIg4MqXJSD8m359zvxeO3ONmQEL5LEEsBQsT+DX8LCARIUI&#13;
+WQN3brXWLCnsh4Vb5+sZwxVYUTmt5UbFHTUFrDxOsOXpCQnndyYo1+nWRXy0hqe2c7oOviP1JG3D&#13;
+t3UfhF7VNQ==
+</ds:X509Certificate>
+</ds:X509Data>
+</ds:KeyInfo>
+</ds:Signature></root>
