@@ -16,6 +16,8 @@
 
 | XMLDSig (`kz-xmldsig`), `signXml`/`signXmls`, `basics.sign(xml)` | **egov.kz: вход боевым ключом** |
 
+Проверено на боевых порталах с действующим ключом НУЦ: **cabinet.stat.gov.kz**, **egov.kz**, **knp.kgd.gov.kz** (кабинет налогоплательщика).
+
 В работе: GUI на Slint/syngui (сейчас — kdialog/zenity),
 упаковка. План и факты — в [docs/PLAN.md](docs/PLAN.md).
 

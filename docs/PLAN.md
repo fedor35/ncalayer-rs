@@ -169,3 +169,4 @@ documentolog, idocs…) — список `https://pki.gov.kz/docs/nl_ru/bundles/
   `{signatures[], certificate}` только при `signingParams.outputCert=true`. XML от basics компактный: без переводов строк
   и без переносов в base64 (в отличие от commonUtils.signXml в стиле Santuario). egov.kz переразбирает документ и теряет
   пробельные узлы внутри SignedInfo → подпись с переносами «недействительна». Две ошибки на egov 02.10.
+- 03.10.2026: knp.kgd.gov.kz (кабинет налогоплательщика) работает боевым ключом — цель проекта (сдача отчётности без Java) достигнута.
