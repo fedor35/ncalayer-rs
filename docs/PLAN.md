@@ -90,9 +90,9 @@ GUI: Slint (уже знаком по vega-bs-config, рендерится под
 
 | # | Этап | Критерий готовности |
 |---|---|---|
-| 0 | Скелет: wss на 13579 с локальным CA, фильтр 127.0.0.1, version/heartbeat, MODULE_NOT_FOUND | `ncalayer-client.js` подключается из Firefox, mocker-тесты sigex проходят |
-| 1 | `gost3410`: подпись/проверка 512-A и 256-A, Стрибог; RSA через `rsa` | тест-векторы RFC 7836; проверка подписи настоящего серта НУЦ (цепочка ҰКО GOST 2022) |
-| 2 | `kz-pki`: чтение p12 НУЦ (3DES/RC2-40 PBE), KeyInfo как у оригинала, выбор по keyType/EKU | `getKeyInfo` отдаёт байт-в-байт такой же JSON, как Java (сверка на своих ключах) |
+| 0 ✅ 02.10 | Скелет: wss на 13579 с локальным CA, фильтр 127.0.0.1, version/heartbeat, MODULE_NOT_FOUND | `ncalayer-client.js` подключается из Firefox, mocker-тесты sigex проходят |
+| 1 ✅ 02.10 | `gost3410`: подпись/проверка 512-A и 256-A, Стрибог; RSA через `rsa` | тест-векторы RFC 7836; проверка подписи настоящего серта НУЦ (цепочка ҰКО GOST 2022) |
+| 2 ✅ 02.10 (боевые ключи не прогнаны) | `kz-pki`: чтение p12 НУЦ (3DES/RC2-40 PBE), KeyInfo как у оригинала, выбор по keyType/EKU | `getKeyInfo` отдаёт байт-в-байт такой же JSON, как Java (сверка на своих ключах) |
 | 3 | `kz-cms`: CAdES-BES attached/detached, +TSP → CAdES-T | подпись проверяется NCANode/Kalkan и принимается cabinet.stat.gov.kz (там CMS) |
 | 4 | commonUtils полностью + basics.sign(cms) | сдача формы на knp.kgd.gov.kz / cabinet.salyk.kz реальным ключом |
 | 5 | `kz-xmldsig` + signXml/signXmls + basics.sign(xml) | egov.kz авторизация и подпись заявления |
@@ -146,3 +146,13 @@ documentolog, idocs…) — список `https://pki.gov.kz/docs/nl_ru/bundles/
 - Firefox enterprise policy (`policies.json` → `Certificates.Install`) как альтернатива certutil для флатпак/снап-браузеров.
 - Позже: WebExtension (как у Doodocs) не нужен, пока сайты ходят на wss напрямую; держим в уме как план Б,
   если НУЦ сменит транспорт.
+
+## 7. Факты, установленные кодом (02.10.2026)
+
+- Подпись в X.509 и в JCE-выдаче Kalkan кодируется **r‖s, каждое little-endian** (побайтовый реверс RFC 4491).
+  Для CMS SignerInfo ещё не проверено — первый тест этапа 3.
+- Хэш в число e читается little-endian, затем mod q (как CryptoPro/gost-engine).
+- Приватный ключ ГОСТ в p12: PKCS#8, `OCTET STRING { OCTET STRING(64) }`, скаляр little-endian (RFC 9215).
+- Контейнеры Kalkan/BC — BER с неопределёнными длинами, `der` их не читает: в kz-pki свой BER→DER (`ber.rs`).
+- DN в формате BouncyCastle `X500Name.toString()`: RDN в порядке кодирования, `,` без пробела.
+- Перекрёстная проверка: Rust ⇄ Kalkan в обе стороны на 512-A (tests/kalkan_oracle.rs, tools/java-oracle).
