@@ -96,7 +96,7 @@ GUI: Slint (уже знаком по vega-bs-config, рендерится под
 | 3 ✅ 02.10 | `kz-cms`: CAdES-BES attached/detached, +TSP → CAdES-T | подпись проверяется NCANode/Kalkan и принимается cabinet.stat.gov.kz (там CMS) |
 | 4 ✅ 02.10 (**cabinet.stat.gov.kz принял подпись боевым ключом**; все методы commonUtils кроме createCAdESFromFile-вариантов с токенами) | commonUtils полностью + basics.sign(cms) | сдача формы на knp.kgd.gov.kz / cabinet.salyk.kz реальным ключом |
 | 5 ✅ 03.10 (**egov.kz: вход боевым ключом через basics.sign(xml) сработал**) | `kz-xmldsig` + signXml/signXmls + basics.sign(xml) | egov.kz авторизация и подпись заявления |
-| 6 | GUI: диалоги Slint, трей, локаль, настройки (прокси, недавние ключи как в settings.json) | работает в Plasma Wayland и GNOME без X11 |
+| 6 ✅ 03.10 | GUI: диалоги Slint, трей, локаль, настройки (прокси, недавние ключи как в settings.json) | работает в Plasma Wayland и GNOME без X11 |
 | 7 | Упаковка: PKGBUILD/AUR, deb, AppImage; systemd --user unit; установка CA | «один пакет и работает» на Arch и Ubuntu |
 | 8 | Позже: legacy ГОСТ-2004 (S-box сверить), токены по PC/SC, Windows/macOS, generateCsr/importCertificate | — |
 
@@ -170,3 +170,7 @@ documentolog, idocs…) — список `https://pki.gov.kz/docs/nl_ru/bundles/
   и без переносов в base64 (в отличие от commonUtils.signXml в стиле Santuario). egov.kz переразбирает документ и теряет
   пробельные узлы внутри SignedInfo → подпись с переносами «недействительна». Две ошибки на egov 02.10.
 - 03.10.2026: knp.kgd.gov.kz (кабинет налогоплательщика) работает боевым ключом — цель проекта (сдача отчётности без Java) достигнута.
+- GUI (этап 6): крейты nca-ui (трейт Ui, Settings, i18n ru/kk/en, DialogUi/FixedUi) и nca-ui-slint. Мост tokio↔Slint:
+  oneshot + `slint::invoke_from_event_loop`; `BackendSelector::select()` обязателен до первого invoke; `ksni` blocking-handle
+  нельзя звать из tokio-воркера; сгенерированный Slint-код несовместим с `forbid(unsafe_code)` (изолирован в модуле).
+  На этой машине Slint берёт Qt 6.11 (Breeze), winit — fallback. rfd (gtk3) — fallback портала, тянет libgtk-3-dev.

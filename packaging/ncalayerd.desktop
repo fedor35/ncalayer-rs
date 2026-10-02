@@ -1,0 +1,18 @@
+[Desktop Entry]
+Type=Application
+Name=ncalayer-rs
+Name[ru]=ncalayer-rs
+Name[kk]=ncalayer-rs
+GenericName=Digital signature service
+GenericName[ru]=Сервис подписи ЭЦП
+GenericName[kk]=ЭЦҚ қол қою қызметі
+Comment=Open NCALayer replacement: wss://127.0.0.1:13579 for Kazakhstan e-government portals
+Comment[ru]=Открытая замена NCALayer: wss://127.0.0.1:13579 для порталов госорганов Казахстана
+Comment[kk]=NCALayer-дің ашық баламасы: Қазақстан мемлекеттік порталдары үшін wss://127.0.0.1:13579
+Exec=ncalayerd run
+Icon=ncalayer-rs
+Terminal=false
+Categories=Utility;Security;
+Keywords=NCALayer;ЭЦП;ЭЦҚ;egov;PKI;
+StartupNotify=false
+X-GNOME-Autostart-enabled=true

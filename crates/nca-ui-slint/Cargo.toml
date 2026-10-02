@@ -1,0 +1,24 @@
+[package]
+name = "nca-ui-slint"
+description = "Фронтенд ncalayerd на Slint: окна выбора ключа и пароля, трей (StatusNotifierItem), настройки"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+nca-ui = { path = "../nca-ui" }
+async-trait = "0.1"
+anyhow.workspace = true
+tracing.workspace = true
+tokio = { version = "1", features = ["sync", "rt"] }
+slint = { version = "1.18", default-features = false, features = ["std", "compat-1-2", "backend-qt", "backend-winit", "renderer-femtovg", "renderer-software", "accessibility"] }
+ksni = { version = "0.3", features = ["blocking"] }
+ashpd = { version = "0.13", default-features = false, features = ["tokio", "file_chooser"] }
+rfd = { version = "0.17", default-features = false, features = ["gtk3"] }
+notify-rust = { version = "4", default-features = false, features = ["z-with-tokio"] }
+png = "0.18"
+
+[build-dependencies]
+slint-build = "1.18"

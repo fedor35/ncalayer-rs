@@ -37,7 +37,9 @@ pub fn sign_blocking(entry: &Entry, req: &CmsRequest<'_>) -> Result<String> {
 
 /// `applyCAdEST(storage, keyType, base64 cms)`: add a time stamp to every signer lacking one.
 pub fn apply_cades_t_blocking(cms_b64: &str) -> Result<String> {
-    let cms = B64.decode(cms_b64.trim()).map_err(|e| anyhow!("bad base64: {e}"))?;
+    let cms = B64
+        .decode(cms_b64.trim())
+        .map_err(|e| anyhow!("bad base64: {e}"))?;
     let mut rng = rand::rng();
     let out = kz_cms::add_cades_t(&cms, &TsaClient::new(NCA_TSA_URL), &mut rng).context("TSA")?;
     Ok(B64.encode(out))

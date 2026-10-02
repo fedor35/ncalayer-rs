@@ -6,8 +6,8 @@ pkgdesc="Открытая замена NCALayer: локальный сервис
 arch=('x86_64' 'aarch64')
 url="https://github.com/fedor35/ncalayer-rs"
 license=('MIT OR Apache-2.0')
-depends=('nss' 'kdialog')
-optdepends=('zenity: диалоги вне KDE')
+depends=('nss' 'qt6-base' 'gtk3')
+optdepends=('kdialog: диалоги без GUI-фичи' 'zenity: диалоги вне KDE')
 makedepends=('cargo' 'git')
 source=("$pkgname::git+https://github.com/fedor35/ncalayer-rs.git")
 sha256sums=('SKIP')
@@ -26,6 +26,8 @@ package() {
   cd "$pkgname"
   install -Dm755 target/release/ncalayerd "$pkgdir/usr/bin/ncalayerd"
   install -Dm644 packaging/ncalayerd.service "$pkgdir/usr/lib/systemd/user/ncalayerd.service"
+  install -Dm644 packaging/ncalayerd.desktop "$pkgdir/usr/share/applications/ncalayerd.desktop"
+  install -Dm644 packaging/ncalayer-rs.svg "$pkgdir/usr/share/icons/hicolor/scalable/apps/ncalayer-rs.svg"
   install -Dm644 README.md "$pkgdir/usr/share/doc/$pkgname/README.md"
   install -Dm644 LICENSE-MIT "$pkgdir/usr/share/licenses/$pkgname/LICENSE-MIT"
   install -Dm644 LICENSE-APACHE "$pkgdir/usr/share/licenses/$pkgname/LICENSE-APACHE"

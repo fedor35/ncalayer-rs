@@ -6,7 +6,10 @@
 //! from it, and register the root in every NSS database we can find.
 
 use anyhow::{bail, Context, Result};
-use rcgen::{BasicConstraints, CertificateParams, DistinguishedName, DnType, IsCa, Issuer, KeyPair, KeyUsagePurpose, SanType};
+use rcgen::{
+    BasicConstraints, CertificateParams, DistinguishedName, DnType, IsCa, Issuer, KeyPair,
+    KeyUsagePurpose, SanType,
+};
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -32,10 +35,18 @@ impl Paths {
         std::fs::create_dir_all(&dir).with_context(|| format!("create {}", dir.display()))?;
         Ok(Self { dir })
     }
-    pub fn ca_cert(&self) -> PathBuf { self.dir.join("ca.pem") }
-    pub fn ca_key(&self) -> PathBuf { self.dir.join("ca.key") }
-    pub fn server_cert(&self) -> PathBuf { self.dir.join("server.pem") }
-    pub fn server_key(&self) -> PathBuf { self.dir.join("server.key") }
+    pub fn ca_cert(&self) -> PathBuf {
+        self.dir.join("ca.pem")
+    }
+    pub fn ca_key(&self) -> PathBuf {
+        self.dir.join("ca.key")
+    }
+    pub fn server_cert(&self) -> PathBuf {
+        self.dir.join("server.pem")
+    }
+    pub fn server_key(&self) -> PathBuf {
+        self.dir.join("server.key")
+    }
 }
 
 /// PEM material the TLS listener needs (leaf + chain, and the leaf key).
@@ -87,15 +98,21 @@ fn load_ca(paths: &Paths) -> Result<Issuer<'static, KeyPair>> {
 fn issue_leaf(paths: &Paths) -> Result<()> {
     let issuer = load_ca(paths)?;
     let key = KeyPair::generate()?;
-    let mut params = CertificateParams::new(vec!["localhost".to_string(), "127.0.0.1".to_string()])?;
-    params.subject_alt_names.push(SanType::IpAddress(std::net::Ipv4Addr::LOCALHOST.into()));
+    let mut params =
+        CertificateParams::new(vec!["localhost".to_string(), "127.0.0.1".to_string()])?;
+    params
+        .subject_alt_names
+        .push(SanType::IpAddress(std::net::Ipv4Addr::LOCALHOST.into()));
     let mut dn = DistinguishedName::new();
     dn.push(DnType::CommonName, "127.0.0.1");
     dn.push(DnType::OrganizationName, "ncalayer-rs");
     params.distinguished_name = dn;
     params.is_ca = IsCa::ExplicitNoCa;
     params.use_authority_key_identifier_extension = true;
-    params.key_usages = vec![KeyUsagePurpose::DigitalSignature, KeyUsagePurpose::KeyEncipherment];
+    params.key_usages = vec![
+        KeyUsagePurpose::DigitalSignature,
+        KeyUsagePurpose::KeyEncipherment,
+    ];
     params.extended_key_usages = vec![rcgen::ExtendedKeyUsagePurpose::ServerAuth];
     params.not_before = OffsetDateTime::now_utc() - Duration::days(1);
     params.not_after = OffsetDateTime::now_utc() + Duration::days(LEAF_VALID_DAYS);
@@ -124,19 +141,33 @@ fn leaf_expires_within(paths: &Paths, window: Duration) -> Result<bool> {
 }
 
 fn write_private(path: &Path, data: &[u8]) -> Result<()> {
-    use std::os::unix::fs::OpenOptionsExt;
     use std::io::Write;
-    let mut f = std::fs::OpenOptions::new().write(true).create(true).truncate(true).mode(0o600).open(path)?;
+    use std::os::unix::fs::OpenOptionsExt;
+    let mut f = std::fs::OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .mode(0o600)
+        .open(path)?;
     f.write_all(data)?;
     Ok(())
 }
 
 /// NSS databases browsers keep in the home directory.
 pub fn nss_databases() -> Vec<PathBuf> {
-    let Some(home) = directories::BaseDirs::new().map(|b| b.home_dir().to_path_buf()) else { return vec![] };
+    let Some(home) = directories::BaseDirs::new().map(|b| b.home_dir().to_path_buf()) else {
+        return vec![];
+    };
     let mut out = vec![];
     // Firefox-family profiles: <root>/<profile>/cert9.db
-    for root in [".mozilla/firefox", ".librewolf", ".waterfox", ".thunderbird", "snap/firefox/common/.mozilla/firefox", ".var/app/org.mozilla.firefox/.mozilla/firefox"] {
+    for root in [
+        ".mozilla/firefox",
+        ".librewolf",
+        ".waterfox",
+        ".thunderbird",
+        "snap/firefox/common/.mozilla/firefox",
+        ".var/app/org.mozilla.firefox/.mozilla/firefox",
+    ] {
         if let Ok(rd) = std::fs::read_dir(home.join(root)) {
             for e in rd.flatten() {
                 if e.path().join("cert9.db").exists() {
@@ -164,7 +195,10 @@ pub fn install_into_nss(paths: &Paths) -> Result<String> {
     }
     for db in dbs {
         // Replace an older copy of our root first, so re-running after CA rotation works.
-        let _ = Command::new("certutil").args(["-D", "-n", CA_NICKNAME, "-d"]).arg(format!("sql:{}", db.display())).output();
+        let _ = Command::new("certutil")
+            .args(["-D", "-n", CA_NICKNAME, "-d"])
+            .arg(format!("sql:{}", db.display()))
+            .output();
         let out = Command::new("certutil")
             .args(["-A", "-n", CA_NICKNAME, "-t", "C,,", "-i"])
             .arg(paths.ca_cert())
@@ -174,24 +208,48 @@ pub fn install_into_nss(paths: &Paths) -> Result<String> {
         if out.status.success() {
             writeln!(report, "✓ {}", db.display())?;
         } else {
-            writeln!(report, "✗ {}: {}", db.display(), String::from_utf8_lossy(&out.stderr).trim())?;
+            writeln!(
+                report,
+                "✗ {}: {}",
+                db.display(),
+                String::from_utf8_lossy(&out.stderr).trim()
+            )?;
         }
     }
-    writeln!(report, "Перезапустите браузер, чтобы доверие вступило в силу.")?;
+    writeln!(
+        report,
+        "Перезапустите браузер, чтобы доверие вступило в силу."
+    )?;
     Ok(report)
 }
 
 pub fn status(paths: &Paths) -> Result<String> {
     let mut s = String::new();
     writeln!(s, "data dir: {}", paths.dir.display())?;
-    writeln!(s, "CA: {}", if paths.ca_cert().exists() { paths.ca_cert().display().to_string() } else { "нет".into() })?;
+    writeln!(
+        s,
+        "CA: {}",
+        if paths.ca_cert().exists() {
+            paths.ca_cert().display().to_string()
+        } else {
+            "нет".into()
+        }
+    )?;
     if paths.server_cert().exists() {
-        writeln!(s, "server: {} (до {})", paths.server_cert().display(), leaf_not_after(paths)?.date())?;
+        writeln!(
+            s,
+            "server: {} (до {})",
+            paths.server_cert().display(),
+            leaf_not_after(paths)?.date()
+        )?;
     } else {
         writeln!(s, "server: нет")?;
     }
     for db in nss_databases() {
-        let out = Command::new("certutil").args(["-L", "-n", CA_NICKNAME, "-d"]).arg(format!("sql:{}", db.display())).output();
+        let out = Command::new("certutil")
+            .args(["-L", "-n", CA_NICKNAME, "-d"])
+            .arg(format!("sql:{}", db.display()))
+            .output();
         let trusted = matches!(out, Ok(o) if o.status.success());
         writeln!(s, "{} {}", if trusted { "✓" } else { "✗" }, db.display())?;
     }

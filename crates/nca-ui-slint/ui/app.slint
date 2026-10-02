@@ -1,0 +1,211 @@
+// Windows of the ncalayer-rs frontend. Every visible string arrives from Rust through `Texts`
+// so the language can change at run time (commonUtils.changeLocale).
+import { Button, StandardListView, ListView, VerticalBox, HorizontalBox, LineEdit, ComboBox, CheckBox } from "std-widgets.slint";
+
+export struct Texts {
+    title: string,
+    origin-line: string,
+    recent: string,
+    no-recent: string,
+    open-file: string,
+    cancel: string,
+    select: string,
+    ok: string,
+    close: string,
+    password-title: string,
+    password-prompt: string,
+    wrong-password: string,
+    show-password: string,
+    error-title: string,
+    settings-title: string,
+    language: string,
+    recent-keys: string,
+    remove: string,
+    start-minimized: string,
+}
+
+global Theme {
+    out property <image> icon: @image-url("../assets/ncalayer-rs-64.png");
+}
+
+// Key container chooser: recent list + "Open file…".
+export component KeyChooser inherits Window {
+    in property <Texts> t;
+    in property <[StandardListViewItem]> recent;
+    in-out property <int> selected: -1;
+    callback open-file();
+    callback confirm(int);
+    callback cancel();
+
+    title: t.title;
+    icon: Theme.icon;
+    preferred-width: 560px;
+    preferred-height: 340px;
+    min-width: 420px;
+    min-height: 260px;
+    forward-focus: keys;
+
+    keys := FocusScope {
+        key-pressed(event) => {
+            if (event.text == Key.Escape) { root.cancel(); return EventResult.accept; }
+            if (event.text == Key.Return && root.selected >= 0) { root.confirm(root.selected); return EventResult.accept; }
+            EventResult.reject
+        }
+        VerticalBox {
+            spacing: 8px;
+            Text { text: t.origin-line; font-weight: 700; font-size: 15px; wrap: word-wrap; }
+            Text { text: t.recent; opacity: 0.8; }
+            if recent.length == 0 : Text { text: t.no-recent; vertical-stretch: 1; vertical-alignment: center; horizontal-alignment: center; wrap: word-wrap; opacity: 0.7; }
+            if recent.length > 0 : StandardListView {
+                vertical-stretch: 1;
+                model: root.recent;
+                current-item <=> root.selected;
+                item-pointer-event(index, event, pos) => {
+                    if (event.kind == PointerEventKind.down) { root.selected = index; }
+                }
+            }
+            HorizontalBox {
+                padding: 0;
+                Button { text: t.open-file; clicked => { root.open-file(); } }
+                Rectangle { horizontal-stretch: 1; }
+                Button { text: t.cancel; clicked => { root.cancel(); } }
+                Button { text: t.select; primary: true; enabled: root.selected >= 0; clicked => { root.confirm(root.selected); } }
+            }
+        }
+    }
+}
+
+// Container password. Enter accepts, Escape cancels.
+export component PasswordDialog inherits Window {
+    in property <Texts> t;
+    in property <string> origin;
+    in property <bool> retry;
+    callback confirm(string);
+    callback cancel();
+
+    title: t.password-title;
+    icon: Theme.icon;
+    preferred-width: 440px;
+    min-width: 360px;
+    forward-focus: pw;
+
+    FocusScope {
+        key-pressed(event) => {
+            if (event.text == Key.Escape) { root.cancel(); return EventResult.accept; }
+            EventResult.reject
+        }
+        VerticalBox {
+            spacing: 8px;
+            if origin != "" : Text { text: origin; font-weight: 700; wrap: word-wrap; }
+            Text { text: t.password-prompt; wrap: word-wrap; }
+            pw := LineEdit {
+                input-type: show.checked ? InputType.text : InputType.password;
+                accepted => { root.confirm(self.text); }
+            }
+            HorizontalBox {
+                padding: 0;
+                show := CheckBox { text: t.show-password; }
+                Rectangle { horizontal-stretch: 1; }
+            }
+            if retry : Text { text: t.wrong-password; color: #c0392b; font-weight: 700; }
+            HorizontalBox {
+                padding: 0;
+                Rectangle { horizontal-stretch: 1; }
+                Button { text: t.cancel; clicked => { root.cancel(); } }
+                Button { text: t.ok; primary: true; clicked => { root.confirm(pw.text); } }
+            }
+        }
+    }
+}
+
+// Error box.
+export component ErrorDialog inherits Window {
+    in property <Texts> t;
+    in property <string> message;
+    callback dismiss();
+
+    title: t.error-title;
+    icon: Theme.icon;
+    preferred-width: 440px;
+    min-width: 320px;
+    forward-focus: fs;
+
+    fs := FocusScope {
+        key-pressed(event) => {
+            if (event.text == Key.Escape || event.text == Key.Return) { root.dismiss(); return EventResult.accept; }
+            EventResult.reject
+        }
+        VerticalBox {
+            spacing: 12px;
+            HorizontalBox {
+                padding: 0;
+                Image { source: Theme.icon; width: 40px; height: 40px; vertical-alignment: top; }
+                Text { text: message; wrap: word-wrap; horizontal-stretch: 1; }
+            }
+            HorizontalBox {
+                padding: 0;
+                Rectangle { horizontal-stretch: 1; }
+                Button { text: t.close; primary: true; clicked => { root.dismiss(); } }
+            }
+        }
+    }
+}
+
+// Settings / main window: language, recent keys, start minimised.
+export component SettingsWindow inherits Window {
+    in property <Texts> t;
+    in property <[string]> languages;
+    in-out property <int> language-index;
+    in property <[string]> recent;
+    in-out property <bool> start-minimized;
+    in property <string> status-line;
+    callback language-changed(int);
+    callback remove-recent(int);
+    callback start-minimized-changed(bool);
+    callback dismiss();
+
+    title: t.settings-title;
+    icon: Theme.icon;
+    preferred-width: 560px;
+    preferred-height: 400px;
+    min-width: 420px;
+    min-height: 300px;
+
+    VerticalBox {
+        spacing: 10px;
+        HorizontalBox {
+            padding: 0;
+            Image { source: Theme.icon; width: 32px; height: 32px; }
+            Text { text: status-line; vertical-alignment: center; wrap: word-wrap; horizontal-stretch: 1; }
+        }
+        HorizontalBox {
+            padding: 0;
+            Text { text: t.language; vertical-alignment: center; }
+            ComboBox {
+                model: root.languages;
+                current-index <=> root.language-index;
+                selected(_) => { root.language-changed(self.current-index); }
+            }
+            Rectangle { horizontal-stretch: 1; }
+        }
+        Text { text: t.recent-keys; font-weight: 700; }
+        ListView {
+            vertical-stretch: 1;
+            for path[i] in root.recent : HorizontalBox {
+                padding: 2px;
+                Text { text: path; vertical-alignment: center; horizontal-stretch: 1; overflow: elide; }
+                Button { text: t.remove; clicked => { root.remove-recent(i); } }
+            }
+        }
+        CheckBox {
+            text: t.start-minimized;
+            checked <=> root.start-minimized;
+            toggled => { root.start-minimized-changed(self.checked); }
+        }
+        HorizontalBox {
+            padding: 0;
+            Rectangle { horizontal-stretch: 1; }
+            Button { text: t.close; primary: true; clicked => { root.dismiss(); } }
+        }
+    }
+}

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- ncalayer-rs icon: shield (trust) + key (signature). Hand-drawn, CC0. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2f6fd6"/>
+      <stop offset="1" stop-color="#1b3f8f"/>
+    </linearGradient>
+  </defs>
+  <path d="M32 3 L55 11 V30 C55 45 44 55 32 61 C20 55 9 45 9 30 V11 Z" fill="url(#g)" stroke="#102a5e" stroke-width="2" stroke-linejoin="round"/>
+  <path d="M32 8 L50 14.5 V30 C50 42 41 50.5 32 55.5 C23 50.5 14 42 14 30 V14.5 Z" fill="none" stroke="#ffffff" stroke-opacity="0.35" stroke-width="1.5"/>
+  <g fill="#ffd34d" stroke="#8a6500" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round">
+    <circle cx="25" cy="25" r="7.5"/>
+    <circle cx="25" cy="25" r="2.6" fill="#1b3f8f" stroke="none"/>
+    <path d="M30.5 30.5 L43 43 L40 46 L36.5 42.5 L34 45 L30.5 41.5 L33 39 L30.5 36.5 L28 39 L25 36 Z"/>
+  </g>
+</svg>

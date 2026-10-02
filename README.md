@@ -18,8 +18,9 @@
 
 Проверено на боевых порталах с действующим ключом НУЦ: **cabinet.stat.gov.kz**, **egov.kz**, **knp.kgd.gov.kz** (кабинет налогоплательщика).
 
-В работе: GUI на Slint/syngui (сейчас — kdialog/zenity),
-упаковка. План и факты — в [docs/PLAN.md](docs/PLAN.md).
+GUI: Slint с Qt-бэкендом (стиль KDE), трей StatusNotifier, выбор файла через XDG-портал, языки ru/kk/en
+(фича `ui-slint`, по умолчанию; `--no-default-features` — диалоги kdialog/zenity). В работе: упаковка deb/AppImage,
+фронтенд на syngui, шимы сторонних модулей. План и факты — в [docs/PLAN.md](docs/PLAN.md).
 
 ## Попробовать
 

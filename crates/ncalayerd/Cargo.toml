@@ -7,8 +7,15 @@ license.workspace = true
 repository.workspace = true
 authors.workspace = true
 
+[features]
+default = ["ui-slint"]
+# GUI на Slint (окна, трей, настройки); без него — kdialog/zenity.
+ui-slint = ["dep:nca-ui-slint"]
+
 [dependencies]
 nca-protocol = { path = "../nca-protocol" }
+nca-ui = { path = "../nca-ui" }
+nca-ui-slint = { path = "../nca-ui-slint", optional = true }
 kz-pki = { path = "../kz-pki" }
 kz-cms = { path = "../kz-cms" }
 kz-xmldsig = { path = "../kz-xmldsig" }
