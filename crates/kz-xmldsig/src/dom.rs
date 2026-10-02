@@ -548,20 +548,6 @@ fn prolog_end(src: &str) -> usize {
     bom
 }
 
-#[cfg(test)]
-mod prolog_tests {
-    use super::prolog_end;
-
-    #[test]
-    fn declaration_is_skipped() {
-        let s = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<a/>";
-        assert_eq!(&s[prolog_end(s)..], "<a/>");
-        assert_eq!(prolog_end("<a/>"), 0);
-        assert_eq!(prolog_end("  <a/>"), 0);
-        let bom = "\u{feff}<?xml version=\"1.0\"?><a/>";
-        assert_eq!(&bom[prolog_end(bom)..], "<a/>");
-    }
-}
 
 /// Qualified name of the start tag beginning at `start` in `src`.
 fn tag_qname(src: &str, start: usize) -> &str {
@@ -605,5 +591,20 @@ pub fn escape_attr(s: &str, out: &mut String) {
             '\t' => out.push_str("&#9;"),
             c => out.push(c),
         }
+    }
+}
+
+#[cfg(test)]
+mod prolog_tests {
+    use super::prolog_end;
+
+    #[test]
+    fn declaration_is_skipped() {
+        let s = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<a/>";
+        assert_eq!(&s[prolog_end(s)..], "<a/>");
+        assert_eq!(prolog_end("<a/>"), 0);
+        assert_eq!(prolog_end("  <a/>"), 0);
+        let bom = "\u{feff}<?xml version=\"1.0\"?><a/>";
+        assert_eq!(&bom[prolog_end(bom)..], "<a/>");
     }
 }

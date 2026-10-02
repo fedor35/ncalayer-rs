@@ -193,11 +193,12 @@ fn sign_many_and_tamper_own() {
 }
 
 #[test]
-fn sign_keeps_text_and_declaration() {
+fn sign_keeps_text_but_drops_declaration() {
     let e = entry();
     let xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!-- c --><doc xmlns=\"urn:d\" xml:lang=\"ru\"><a>  текст &amp; <![CDATA[<x>]]> </a><?pi data?></doc>\n";
     let signed = sign_enveloped(&e, xml, &mut rng()).unwrap();
-    assert!(signed.starts_with("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!-- c --><doc xmlns=\"urn:d\" xml:lang=\"ru\"><a>  текст &amp; <![CDATA[<x>]]> </a><?pi data?><ds:Signature"));
+    // The declaration goes (as Santuario does); everything else is preserved verbatim.
+    assert!(signed.starts_with("<!-- c --><doc xmlns=\"urn:d\" xml:lang=\"ru\"><a>  текст &amp; <![CDATA[<x>]]> </a><?pi data?><ds:Signature"));
     assert!(signed.ends_with("</ds:Signature></doc>\n"));
     verify(&signed).unwrap();
 }
