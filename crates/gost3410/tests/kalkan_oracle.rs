@@ -1,7 +1,9 @@
 //! Cross-check against KalkanCrypt output produced by `tools/java-oracle`
 //! (`tests/fixtures/test_gost512.vectors`): KZ paramSetA 512, Streebog-512.
 
-use gost3410::{digest_for_curve, sign_deterministic, verify, NamedCurve, PublicKey, SecretKey, Signature};
+use gost3410::{
+    digest_for_curve, sign_deterministic, verify, NamedCurve, PublicKey, SecretKey, Signature,
+};
 use std::collections::HashMap;
 
 fn vectors() -> HashMap<String, String> {
@@ -23,7 +25,13 @@ fn pad_hex(h: &str, len: usize) -> Vec<u8> {
 #[test]
 fn kalkan_digest_is_streebog512_of_message() {
     let v = vectors();
-    assert_eq!(hex::encode(digest_for_curve(NamedCurve::Tc26Gost3410_12_512ParamSetA, v["msg"].as_bytes())), v["digest"]);
+    assert_eq!(
+        hex::encode(digest_for_curve(
+            NamedCurve::Tc26Gost3410_12_512ParamSetA,
+            v["msg"].as_bytes()
+        )),
+        v["digest"]
+    );
 }
 
 #[test]
@@ -54,7 +62,10 @@ fn kalkan_message_signature_verifies_in_kz_layout() {
     let digest = hex::decode(&v["digest"]).unwrap();
     let sig = hex::decode(&v["sig"]).unwrap();
     let kz = Signature::from_bytes_kz(curve, &sig).unwrap();
-    assert!(verify(curve, &q, &digest, &kz), "Kalkan JCE signature must verify as r_LE||s_LE");
+    assert!(
+        verify(curve, &q, &digest, &kz),
+        "Kalkan JCE signature must verify as r_LE||s_LE"
+    );
 }
 
 #[test]
