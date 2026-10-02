@@ -548,7 +548,6 @@ fn prolog_end(src: &str) -> usize {
     bom
 }
 
-
 /// Qualified name of the start tag beginning at `start` in `src`.
 fn tag_qname(src: &str, start: usize) -> &str {
     let s = &src[start + 1..];

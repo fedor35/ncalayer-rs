@@ -78,10 +78,20 @@ pub struct CommonResponse {
 
 impl CommonResponse {
     pub fn ok(response_object: Value, uuid: Option<Value>) -> Self {
-        Self { code: "200".into(), message: String::new(), response_object, uuid }
+        Self {
+            code: "200".into(),
+            message: String::new(),
+            response_object,
+            uuid,
+        }
     }
     pub fn error(message: impl Into<String>, uuid: Option<Value>) -> Self {
-        Self { code: "500".into(), message: message.into(), response_object: Value::Null, uuid }
+        Self {
+            code: "500".into(),
+            message: message.into(),
+            response_object: Value::Null,
+            uuid,
+        }
     }
     /// The user closed the key dialog: Java answers `500` + `action.canceled`.
     pub fn canceled(uuid: Option<Value>) -> Self {
@@ -105,14 +115,32 @@ pub struct BasicsResponse {
 
 impl BasicsResponse {
     pub fn ok(result: Value) -> Self {
-        Self { status: true, code: None, message: None, details: None, body: Some(json!({ "result": result })) }
+        Self {
+            status: true,
+            code: None,
+            message: None,
+            details: None,
+            body: Some(json!({ "result": result })),
+        }
     }
     /// User cancelled: `status:true` with an empty body (that is how ncalayer-client.js detects it).
     pub fn canceled() -> Self {
-        Self { status: true, code: None, message: None, details: None, body: Some(json!({})) }
+        Self {
+            status: true,
+            code: None,
+            message: None,
+            details: None,
+            body: Some(json!({})),
+        }
     }
     pub fn error(code: BasicsFailure, message: impl Into<String>) -> Self {
-        Self { status: false, code: Some(code.as_str().into()), message: Some(message.into()), details: None, body: None }
+        Self {
+            status: false,
+            code: Some(code.as_str().into()),
+            message: Some(message.into()),
+            details: None,
+            body: None,
+        }
     }
 }
 
@@ -194,7 +222,8 @@ mod tests {
 
     #[test]
     fn module_defaults_to_legacy_applet() {
-        let r = Request::parse(r#"{"method":"signXml","args":["PKCS12","/k.p12","pw","<a/>"]}"#).unwrap();
+        let r = Request::parse(r#"{"method":"signXml","args":["PKCS12","/k.p12","pw","<a/>"]}"#)
+            .unwrap();
         assert_eq!(r.module, MODULE_APPLET);
         assert_eq!(r.arg_str(0), Some("PKCS12"));
         assert_eq!(r.arg_str(3), Some("<a/>"));
@@ -202,8 +231,12 @@ mod tests {
 
     #[test]
     fn common_response_shapes() {
-        let ok = serde_json::to_value(CommonResponse::ok(json!(["PKCS12"]), Some(json!("u1")))).unwrap();
-        assert_eq!(ok, json!({"code":"200","message":"","responseObject":["PKCS12"],"uuid":"u1"}));
+        let ok =
+            serde_json::to_value(CommonResponse::ok(json!(["PKCS12"]), Some(json!("u1")))).unwrap();
+        assert_eq!(
+            ok,
+            json!({"code":"200","message":"","responseObject":["PKCS12"],"uuid":"u1"})
+        );
         let cancel = serde_json::to_value(CommonResponse::canceled(None)).unwrap();
         assert_eq!(cancel, json!({"code":"500","message":"action.canceled"}));
     }
@@ -211,14 +244,24 @@ mod tests {
     #[test]
     fn basics_response_shapes() {
         let ok = serde_json::to_value(BasicsResponse::ok(json!({"signatures":["x"]}))).unwrap();
-        assert_eq!(ok, json!({"status":true,"body":{"result":{"signatures":["x"]}}}));
-        let err = serde_json::to_value(BasicsResponse::error(BasicsFailure::InvocationError, "no such method")).unwrap();
+        assert_eq!(
+            ok,
+            json!({"status":true,"body":{"result":{"signatures":["x"]}}})
+        );
+        let err = serde_json::to_value(BasicsResponse::error(
+            BasicsFailure::InvocationError,
+            "no such method",
+        ))
+        .unwrap();
         assert_eq!(err["code"], "INVOCATION_ERROR");
         assert_eq!(err["status"], false);
     }
 
     #[test]
     fn module_not_found_shape() {
-        assert_eq!(module_not_found(), json!({"success":false,"errorCode":"MODULE_NOT_FOUND"}));
+        assert_eq!(
+            module_not_found(),
+            json!({"success":false,"errorCode":"MODULE_NOT_FOUND"})
+        );
     }
 }

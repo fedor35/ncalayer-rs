@@ -96,7 +96,14 @@ impl PrivateKey {
         let alg = pki.algorithm.oid;
         match alg {
             oid::GOST2015_256_KEY | oid::GOST2015_512_KEY => {
-                let curve = gost2015_curve(alg, pki.algorithm.parameters.map(|p| p.to_der()).transpose()?.as_deref())?;
+                let curve = gost2015_curve(
+                    alg,
+                    pki.algorithm
+                        .parameters
+                        .map(|p| p.to_der())
+                        .transpose()?
+                        .as_deref(),
+                )?;
                 let d = decode_gost_scalar(pki.private_key.as_bytes(), curve.scalar_len())?;
                 Ok(PrivateKey::Gost2015 { curve, d })
             }
@@ -157,7 +164,12 @@ impl PublicKey {
             .ok_or_else(|| Error::Asn1("public key BIT STRING has unused bits".into()))?;
         match alg {
             oid::GOST2015_256_KEY | oid::GOST2015_512_KEY => {
-                let params = spki.algorithm.parameters.as_ref().map(|p| p.to_der()).transpose()?;
+                let params = spki
+                    .algorithm
+                    .parameters
+                    .as_ref()
+                    .map(|p| p.to_der())
+                    .transpose()?;
                 let curve = gost2015_curve(alg, params.as_deref())?;
                 let (x, y) = decode_gost_point(bits, curve.scalar_len())?;
                 Ok(PublicKey::Gost2015 { curve, x, y })
@@ -168,7 +180,10 @@ impl PublicKey {
             }
             oid::RSA_ENCRYPTION => {
                 use rsa::pkcs8::DecodePublicKey;
-                Ok(PublicKey::Rsa(rsa::RsaPublicKey::from_public_key_der(&spki.to_der()?).map_err(|e| Error::PrivateKey(e.to_string()))?))
+                Ok(PublicKey::Rsa(
+                    rsa::RsaPublicKey::from_public_key_der(&spki.to_der()?)
+                        .map_err(|e| Error::PrivateKey(e.to_string()))?,
+                ))
             }
             other => Err(Error::UnsupportedAlgorithm(other)),
         }
@@ -244,7 +259,11 @@ fn decode_gost_scalar(inner: &[u8], len: usize) -> Result<Vec<u8>> {
             v.reverse();
             v
         }
-        None => return Err(Error::PrivateKey("unrecognised GOST private key encoding".into())),
+        None => {
+            return Err(Error::PrivateKey(
+                "unrecognised GOST private key encoding".into(),
+            ))
+        }
     };
     // Normalise to exactly `len` bytes (left-pad with zeros).
     while d.len() < len {
@@ -262,7 +281,11 @@ fn decode_gost_point(bits: &[u8], len: usize) -> Result<(Vec<u8>, Vec<u8>)> {
         der::asn1::OctetString::from_der(bits)?.as_bytes().to_vec()
     };
     if raw.len() != 2 * len {
-        return Err(Error::Asn1(format!("GOST public key: expected {} bytes, got {}", 2 * len, raw.len())));
+        return Err(Error::Asn1(format!(
+            "GOST public key: expected {} bytes, got {}",
+            2 * len,
+            raw.len()
+        )));
     }
     let mut x = raw[..len].to_vec();
     let mut y = raw[len..].to_vec();

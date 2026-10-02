@@ -16,15 +16,25 @@ use crate::oid;
 
 /// Decrypt `ciphertext` under `alg` (an `AlgorithmIdentifier` of a PBE scheme)
 /// with `password`.
-pub fn decrypt(alg: &AlgorithmIdentifierOwned, password: &str, ciphertext: &[u8]) -> Result<Vec<u8>> {
+pub fn decrypt(
+    alg: &AlgorithmIdentifierOwned,
+    password: &str,
+    ciphertext: &[u8],
+) -> Result<Vec<u8>> {
     match alg.oid {
         oid::PBE_SHA1_3DES => {
             let (key, iv) = pkcs12_kdf(alg, password, 24)?;
-            cbc_decrypt(cbc::Decryptor::<des::TdesEde3>::new_from_slices(&key, &iv)?, ciphertext)
+            cbc_decrypt(
+                cbc::Decryptor::<des::TdesEde3>::new_from_slices(&key, &iv)?,
+                ciphertext,
+            )
         }
         oid::PBE_SHA1_2DES => {
             let (key, iv) = pkcs12_kdf(alg, password, 16)?;
-            cbc_decrypt(cbc::Decryptor::<des::TdesEde2>::new_from_slices(&key, &iv)?, ciphertext)
+            cbc_decrypt(
+                cbc::Decryptor::<des::TdesEde2>::new_from_slices(&key, &iv)?,
+                ciphertext,
+            )
         }
         oid::PBE_SHA1_RC2_128 => rc2_decrypt(alg, password, 16, 128, ciphertext),
         oid::PBE_SHA1_RC2_40 => rc2_decrypt(alg, password, 5, 40, ciphertext),
@@ -47,7 +57,13 @@ fn pkcs12_kdf(
         .ok_or_else(|| Error::Asn1("missing PKCS#12 PBE parameters".into()))?;
     let params: Pkcs12PbeParams = params.decode_as()?;
     let salt = params.salt.as_bytes();
-    let key = derive_key_utf8::<Sha1>(password, salt, Pkcs12KeyType::EncryptionKey, params.iterations, key_len)?;
+    let key = derive_key_utf8::<Sha1>(
+        password,
+        salt,
+        Pkcs12KeyType::EncryptionKey,
+        params.iterations,
+        key_len,
+    )?;
     let iv = derive_key_utf8::<Sha1>(password, salt, Pkcs12KeyType::Iv, params.iterations, 8)?;
     Ok((Zeroizing::new(key), iv))
 }
@@ -80,6 +96,10 @@ impl From<cipher::InvalidLength> for Error {
 pub fn is_supported(oid: &ObjectIdentifier) -> bool {
     matches!(
         *oid,
-        oid::PBE_SHA1_3DES | oid::PBE_SHA1_2DES | oid::PBE_SHA1_RC2_128 | oid::PBE_SHA1_RC2_40 | oid::PBES2
+        oid::PBE_SHA1_3DES
+            | oid::PBE_SHA1_2DES
+            | oid::PBE_SHA1_RC2_128
+            | oid::PBE_SHA1_RC2_40
+            | oid::PBES2
     )
 }

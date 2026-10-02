@@ -98,13 +98,17 @@ pub fn open(bytes: &[u8], password: &str) -> Result<KeyStore> {
     let auth_safe = pfx.child(1)?;
     let (ct, content) = content_info(auth_safe)?;
     if ct != oid::PKCS7_DATA {
-        return Err(Error::Unsupported(format!("authSafe content type {ct} (public-key integrity mode)")));
+        return Err(Error::Unsupported(format!(
+            "authSafe content type {ct} (public-key integrity mode)"
+        )));
     }
     let auth_safe_bytes = content.octets()?;
 
     match pfx.children()?.get(2) {
         Some(mac_data) => verify_mac(mac_data, &auth_safe_bytes, password)?,
-        None => tracing::warn!("PKCS#12 container has no MAC; password cannot be verified before decryption"),
+        None => tracing::warn!(
+            "PKCS#12 container has no MAC; password cannot be verified before decryption"
+        ),
     }
 
     // AuthenticatedSafe ::= SEQUENCE OF ContentInfo
@@ -133,7 +137,9 @@ fn content_info(node: &Node) -> Result<(ObjectIdentifier, &Node)> {
     let ct = node.child(0)?.oid()?;
     let wrapper = node.child(1)?;
     if wrapper.tag() != 0xa0 {
-        return Err(Error::Asn1("ContentInfo content is not [0] EXPLICIT".into()));
+        return Err(Error::Asn1(
+            "ContentInfo content is not [0] EXPLICIT".into(),
+        ));
     }
     Ok((ct, wrapper.child(0)?))
 }
@@ -143,18 +149,26 @@ fn verify_mac(mac_data: &Node, data: &[u8], password: &str) -> Result<()> {
     mac_data.expect_tag(ber::TAG_SEQUENCE)?;
     let digest_info = mac_data.child(0)?;
     let alg = digest_info.child(0)?.child(0)?.oid()?;
-    let expected = digest_info.child(1)?.expect_tag(ber::TAG_OCTET_STRING)?.octets()?;
-    let salt = mac_data.child(1)?.expect_tag(ber::TAG_OCTET_STRING)?.octets()?;
+    let expected = digest_info
+        .child(1)?
+        .expect_tag(ber::TAG_OCTET_STRING)?
+        .octets()?;
+    let salt = mac_data
+        .child(1)?
+        .expect_tag(ber::TAG_OCTET_STRING)?
+        .octets()?;
     let iterations = match mac_data.children()?.get(2) {
         Some(n) => n.small_int()?,
         None => 1,
     };
-    let iterations = i32::try_from(iterations).map_err(|_| Error::Asn1("MAC iteration count out of range".into()))?;
+    let iterations = i32::try_from(iterations)
+        .map_err(|_| Error::Asn1("MAC iteration count out of range".into()))?;
 
     macro_rules! check {
         ($d:ty) => {{
             let key_len = <$d as digest::OutputSizeUser>::output_size();
-            let key = derive_key_utf8::<$d>(password, &salt, Pkcs12KeyType::Mac, iterations, key_len)?;
+            let key =
+                derive_key_utf8::<$d>(password, &salt, Pkcs12KeyType::Mac, iterations, key_len)?;
             let mut mac = <Hmac<$d> as digest::KeyInit>::new_from_slice(&key)
                 .map_err(|_| Error::Decrypt("HMAC key length".into()))?;
             Mac::update(&mut mac, data);
@@ -181,12 +195,16 @@ fn decrypt_encrypted_data(node: &Node, password: &str) -> Result<Vec<u8>> {
     let eci = node.child(1)?.expect_tag(ber::TAG_SEQUENCE)?;
     let ct = eci.child(0)?.oid()?;
     if ct != oid::PKCS7_DATA {
-        return Err(Error::Unsupported(format!("EncryptedData content type {ct}")));
+        return Err(Error::Unsupported(format!(
+            "EncryptedData content type {ct}"
+        )));
     }
     let alg = AlgorithmIdentifierOwned::from_der(&eci.child(1)?.to_der())?;
     let enc = eci.child(2)?;
     if enc.tag() & 0xdf != 0x80 {
-        return Err(Error::Asn1("EncryptedData has no [0] encryptedContent".into()));
+        return Err(Error::Asn1(
+            "EncryptedData has no [0] encryptedContent".into(),
+        ));
     }
     let ciphertext = enc.octets()?;
     pbe::decrypt(&alg, password, &ciphertext)
@@ -214,7 +232,10 @@ fn collect_bags(safe_contents: &[u8], password: &str, bags: &mut Bags) -> Result
             oid::BAG_SHROUDED_KEY => {
                 // EncryptedPrivateKeyInfo ::= SEQUENCE { encryptionAlgorithm, encryptedData OCTET STRING }
                 let alg = AlgorithmIdentifierOwned::from_der(&value.child(0)?.to_der())?;
-                let ciphertext = value.child(1)?.expect_tag(ber::TAG_OCTET_STRING)?.octets()?;
+                let ciphertext = value
+                    .child(1)?
+                    .expect_tag(ber::TAG_OCTET_STRING)?
+                    .octets()?;
                 let key_der = pbe::decrypt(&alg, password, &ciphertext)?;
                 bags.keys.push(KeyBag {
                     key_der,
@@ -281,11 +302,17 @@ fn build_store(bags: Bags) -> Result<KeyStore> {
         let cert_idx = key_bag
             .local_key_id
             .as_ref()
-            .and_then(|id| bags.certs.iter().position(|c| c.local_key_id.as_deref() == Some(id.as_slice())))
-            .or_else(|| {
+            .and_then(|id| {
                 bags.certs
                     .iter()
-                    .position(|c| !bags.certs.iter().any(|o| o.cert.issuer() == c.cert.subject() && o.cert.subject() != c.cert.subject()))
+                    .position(|c| c.local_key_id.as_deref() == Some(id.as_slice()))
+            })
+            .or_else(|| {
+                bags.certs.iter().position(|c| {
+                    !bags.certs.iter().any(|o| {
+                        o.cert.issuer() == c.cert.subject() && o.cert.subject() != c.cert.subject()
+                    })
+                })
             })
             .or(if bags.certs.is_empty() { None } else { Some(0) })
             .ok_or_else(|| Error::Unsupported("key entry without a certificate".into()))?;

@@ -131,12 +131,24 @@ impl Cert {
 
     /// `notBefore`.
     pub fn not_before(&self) -> Result<OffsetDateTime> {
-        to_offset_datetime(self.inner.tbs_certificate().validity().not_before.to_unix_duration())
+        to_offset_datetime(
+            self.inner
+                .tbs_certificate()
+                .validity()
+                .not_before
+                .to_unix_duration(),
+        )
     }
 
     /// `notAfter`.
     pub fn not_after(&self) -> Result<OffsetDateTime> {
-        to_offset_datetime(self.inner.tbs_certificate().validity().not_after.to_unix_duration())
+        to_offset_datetime(
+            self.inner
+                .tbs_certificate()
+                .validity()
+                .not_after
+                .to_unix_duration(),
+        )
     }
 
     /// `notBefore` formatted as `dd.MM.yyyy HH:mm:ss` in Asia/Almaty.
@@ -151,13 +163,21 @@ impl Cert {
 
     /// Authority key identifier, lowercase hex (empty if absent).
     pub fn authority_key_identifier(&self) -> Result<Option<String>> {
-        let ext = self.inner.tbs_certificate().get_extension::<AuthorityKeyIdentifier>()?;
-        Ok(ext.and_then(|(_, aki)| aki.key_identifier).map(|k| hex_lower(k.as_bytes())))
+        let ext = self
+            .inner
+            .tbs_certificate()
+            .get_extension::<AuthorityKeyIdentifier>()?;
+        Ok(ext
+            .and_then(|(_, aki)| aki.key_identifier)
+            .map(|k| hex_lower(k.as_bytes())))
     }
 
     /// Extended key usage OIDs.
     pub fn extended_key_usage(&self) -> Result<Vec<ObjectIdentifier>> {
-        let ext = self.inner.tbs_certificate().get_extension::<ExtendedKeyUsage>()?;
+        let ext = self
+            .inner
+            .tbs_certificate()
+            .get_extension::<ExtendedKeyUsage>()?;
         Ok(ext.map(|(_, e)| e.0).unwrap_or_default())
     }
 
@@ -176,7 +196,10 @@ impl Cert {
 
     /// Certificate policy OIDs.
     pub fn policies(&self) -> Result<Vec<ObjectIdentifier>> {
-        let ext = self.inner.tbs_certificate().get_extension::<CertificatePolicies>()?;
+        let ext = self
+            .inner
+            .tbs_certificate()
+            .get_extension::<CertificatePolicies>()?;
         Ok(ext
             .map(|(_, p)| p.0.into_iter().map(|pi| pi.policy_identifier).collect())
             .unwrap_or_default())
@@ -184,7 +207,11 @@ impl Cert {
 
     /// DER `SubjectPublicKeyInfo`.
     pub fn spki_der(&self) -> Result<Vec<u8>> {
-        Ok(self.inner.tbs_certificate().subject_public_key_info().to_der()?)
+        Ok(self
+            .inner
+            .tbs_certificate()
+            .subject_public_key_info()
+            .to_der()?)
     }
 
     /// Decoded public key.
@@ -200,7 +227,11 @@ impl Cert {
 
     /// Public-key algorithm OID.
     pub fn public_key_oid(&self) -> ObjectIdentifier {
-        self.inner.tbs_certificate().subject_public_key_info().algorithm.oid
+        self.inner
+            .tbs_certificate()
+            .subject_public_key_info()
+            .algorithm
+            .oid
     }
 
     /// IIN (individual identification number) from the subject `SERIALNUMBER=IIN...`.
@@ -220,8 +251,10 @@ impl Cert {
 }
 
 fn to_offset_datetime(d: core::time::Duration) -> Result<OffsetDateTime> {
-    OffsetDateTime::from_unix_timestamp(i64::try_from(d.as_secs()).map_err(|_| Error::Asn1("time out of range".into()))?)
-        .map_err(|e| Error::Asn1(e.to_string()))
+    OffsetDateTime::from_unix_timestamp(
+        i64::try_from(d.as_secs()).map_err(|_| Error::Asn1("time out of range".into()))?,
+    )
+    .map_err(|e| Error::Asn1(e.to_string()))
 }
 
 /// Format as `dd.MM.yyyy HH:mm:ss` in Asia/Almaty (UTC+5).
@@ -259,7 +292,9 @@ fn hex_lower(bytes: &[u8]) -> String {
 
 /// First value of attribute `oid` in `name`, if it is a string type.
 fn attribute_value(name: &Name, oid: &ObjectIdentifier) -> Option<String> {
-    name.iter().filter(|atv| atv.oid == *oid).find_map(atv_string)
+    name.iter()
+        .filter(|atv| atv.oid == *oid)
+        .find_map(atv_string)
 }
 
 /// String value of an attribute (any of the usual directory string types).
@@ -268,10 +303,18 @@ fn atv_string(atv: &AttributeTypeAndValue) -> Option<String> {
     use der::Tag;
     let v = &atv.value;
     match v.tag() {
-        Tag::PrintableString => PrintableStringRef::try_from(v).ok().map(|s| s.as_str().to_owned()),
-        Tag::Utf8String => Utf8StringRef::try_from(v).ok().map(|s| s.as_str().to_owned()),
-        Tag::Ia5String => Ia5StringRef::try_from(v).ok().map(|s| s.as_str().to_owned()),
-        Tag::TeletexString => TeletexStringRef::try_from(v).ok().map(|s| s.as_str().to_owned()),
+        Tag::PrintableString => PrintableStringRef::try_from(v)
+            .ok()
+            .map(|s| s.as_str().to_owned()),
+        Tag::Utf8String => Utf8StringRef::try_from(v)
+            .ok()
+            .map(|s| s.as_str().to_owned()),
+        Tag::Ia5String => Ia5StringRef::try_from(v)
+            .ok()
+            .map(|s| s.as_str().to_owned()),
+        Tag::TeletexString => TeletexStringRef::try_from(v)
+            .ok()
+            .map(|s| s.as_str().to_owned()),
         Tag::BmpString => v.decode_as::<BmpString>().ok().map(|s| s.chars().collect()),
         _ => None,
     }
@@ -391,6 +434,9 @@ mod tests {
         // x509-cert parses RFC 4514 strings (reversed), so build the name from
         // a string whose encoded order becomes C, OU, SURNAME, CN.
         let name = Name::from_str("CN=A\\, B,SURNAME=X,OU=BIN123456789012,C=KZ").unwrap();
-        assert_eq!(format_dn(&name), "C=KZ,OU=BIN123456789012,SURNAME=X,CN=A\\, B");
+        assert_eq!(
+            format_dn(&name),
+            "C=KZ,OU=BIN123456789012,SURNAME=X,CN=A\\, B"
+        );
     }
 }

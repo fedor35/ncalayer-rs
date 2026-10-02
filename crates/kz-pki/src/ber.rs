@@ -72,7 +72,10 @@ impl Node {
         match len {
             Some(len) => {
                 if rest.len() < len {
-                    return err(format!("length {len} exceeds remaining {} bytes", rest.len()));
+                    return err(format!(
+                        "length {len} exceeds remaining {} bytes",
+                        rest.len()
+                    ));
                 }
                 let (body, rest) = rest.split_at(len);
                 let node = if constructed {
@@ -132,7 +135,9 @@ impl Node {
     pub fn children(&self) -> Result<&[Node]> {
         match self {
             Node::Constructed { children, .. } => Ok(children),
-            Node::Primitive { tag, .. } => err(format!("expected constructed node, got tag 0x{tag:02x}")),
+            Node::Primitive { tag, .. } => {
+                err(format!("expected constructed node, got tag 0x{tag:02x}"))
+            }
         }
     }
 
@@ -148,7 +153,10 @@ impl Node {
         if self.tag() == tag {
             Ok(self)
         } else {
-            err(format!("expected tag 0x{tag:02x}, got 0x{:02x}", self.tag()))
+            err(format!(
+                "expected tag 0x{tag:02x}, got 0x{:02x}",
+                self.tag()
+            ))
         }
     }
 
@@ -171,7 +179,9 @@ impl Node {
     pub fn primitive(&self) -> Result<&[u8]> {
         match self {
             Node::Primitive { bytes, .. } => Ok(bytes),
-            Node::Constructed { tag, .. } => err(format!("expected primitive node, got tag 0x{tag:02x}")),
+            Node::Constructed { tag, .. } => {
+                err(format!("expected primitive node, got tag 0x{tag:02x}"))
+            }
         }
     }
 
@@ -211,7 +221,10 @@ impl Node {
             }
             Node::Constructed { tag, children } => {
                 let universal_string = *tag & 0xc0 == 0
-                    && matches!(*tag & 0x1f, TAG_OCTET_STRING | TAG_BIT_STRING | 0x0c | 0x13 | 0x16 | 0x1e);
+                    && matches!(
+                        *tag & 0x1f,
+                        TAG_OCTET_STRING | TAG_BIT_STRING | 0x0c | 0x13 | 0x16 | 0x1e
+                    );
                 if universal_string {
                     // Flatten to a primitive universal string.
                     let bytes = self.octets().unwrap_or_default();
@@ -284,9 +297,15 @@ mod tests {
     #[test]
     fn indefinite_length_roundtrip() {
         // SEQUENCE (indefinite) { OCTET STRING (constructed, indefinite) { "ab", "c" } }
-        let ber = [0x30, 0x80, 0x24, 0x80, 0x04, 0x02, b'a', b'b', 0x04, 0x01, b'c', 0x00, 0x00, 0x00, 0x00];
+        let ber = [
+            0x30, 0x80, 0x24, 0x80, 0x04, 0x02, b'a', b'b', 0x04, 0x01, b'c', 0x00, 0x00, 0x00,
+            0x00,
+        ];
         let node = Node::parse(&ber).unwrap();
-        assert_eq!(node.to_der(), vec![0x30, 0x05, 0x04, 0x03, b'a', b'b', b'c']);
+        assert_eq!(
+            node.to_der(),
+            vec![0x30, 0x05, 0x04, 0x03, b'a', b'b', b'c']
+        );
         assert_eq!(node.child(0).unwrap().octets().unwrap(), b"abc");
     }
 

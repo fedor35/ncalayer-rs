@@ -167,7 +167,13 @@ fn sign_document<R: CryptoRng + ?Sized>(
             base64_wrapped(data)
         }
     };
-    let wrap = |s: String| -> String { if compact { s } else { format!("\n{s}\n") } };
+    let wrap = |s: String| -> String {
+        if compact {
+            s
+        } else {
+            format!("\n{s}\n")
+        }
+    };
 
     let sig = doc.append_element(
         t.parent,

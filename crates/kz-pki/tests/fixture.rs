@@ -73,8 +73,14 @@ fn certificate_fields() {
     let v = vectors();
     let ks = open();
     let cert = &ks.entries[0].cert;
-    assert_eq!(cert.subject_dn(), "CN=TEST GOST512,SERIALNUMBER=IIN000000000000,C=KZ");
-    assert_eq!(cert.issuer_dn(), "CN=TEST GOST512,SERIALNUMBER=IIN000000000000,C=KZ");
+    assert_eq!(
+        cert.subject_dn(),
+        "CN=TEST GOST512,SERIALNUMBER=IIN000000000000,C=KZ"
+    );
+    assert_eq!(
+        cert.issuer_dn(),
+        "CN=TEST GOST512,SERIALNUMBER=IIN000000000000,C=KZ"
+    );
     assert_eq!(cert.subject_cn().as_deref(), Some("TEST GOST512"));
     assert_eq!(cert.iin().as_deref(), Some("000000000000"));
     assert_eq!(cert.bin(), None);
@@ -98,7 +104,11 @@ fn pem_matches_fixture() {
     let cert = &ks.entries[0].cert;
     let pem = cert.pem().unwrap();
     assert_eq!(pem.trim_end(), CER_PEM.trim_end());
-    assert!(pem.lines().skip(1).take_while(|l| !l.starts_with("-----")).all(|l| l.len() <= 64));
+    assert!(pem
+        .lines()
+        .skip(1)
+        .take_while(|l| !l.starts_with("-----"))
+        .all(|l| l.len() <= 64));
     let from_pem = Cert::from_pem(CER_PEM).unwrap();
     assert_eq!(from_pem.as_der(), cert.as_der());
 }

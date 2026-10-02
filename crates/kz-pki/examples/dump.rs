@@ -23,12 +23,29 @@ fn main() {
         println!("subjectDn:   {}", e.cert.subject_dn());
         println!("issuerDn:    {}", e.cert.issuer_dn());
         println!("serial:      {}", e.cert.serial_number());
-        println!("notBefore:   {}", e.cert.not_before_str().unwrap_or_default());
-        println!("notAfter:    {}", e.cert.not_after_str().unwrap_or_default());
+        println!(
+            "notBefore:   {}",
+            e.cert.not_before_str().unwrap_or_default()
+        );
+        println!(
+            "notAfter:    {}",
+            e.cert.not_after_str().unwrap_or_default()
+        );
         println!("keyUsage:    {}", e.cert.key_usage_type().as_str());
-        println!("policies:    {:?}", e.cert.policies().unwrap_or_default().iter().map(|o| o.to_string()).collect::<Vec<_>>());
+        println!(
+            "policies:    {:?}",
+            e.cert
+                .policies()
+                .unwrap_or_default()
+                .iter()
+                .map(|o| o.to_string())
+                .collect::<Vec<_>>()
+        );
         println!("iin/bin:     {:?} / {:?}", e.cert.iin(), e.cert.bin());
-        println!("authKeyId:   {:?}", e.cert.authority_key_identifier().unwrap_or_default());
+        println!(
+            "authKeyId:   {:?}",
+            e.cert.authority_key_identifier().unwrap_or_default()
+        );
         println!("chain:       {} cert(s)", e.chain.len());
         println!();
     }
