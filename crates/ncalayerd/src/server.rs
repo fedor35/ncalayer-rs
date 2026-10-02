@@ -1,7 +1,9 @@
 //! TLS listener on 127.0.0.1:<port>: WebSocket endpoint plus a small status page.
 
 use crate::ca::ServerCerts;
+use crate::cms_api::{self, CmsRequest};
 use crate::keys::{self, Selection};
+use nca_protocol::KeyType;
 use crate::ui::Ui;
 use std::path::PathBuf;
 use anyhow::Result;
@@ -101,7 +103,7 @@ async fn dispatch(text: &str, origin: &str, shared: &Shared) -> Value {
     tracing::info!(%origin, module = %req.module, method = %req.method, "request");
     match req.module.as_str() {
         proto::MODULE_COMMON_UTILS => common_utils(&req, shared).await,
-        proto::MODULE_BASICS => basics(&req),
+        proto::MODULE_BASICS => basics(&req, shared).await,
         proto::MODULE_ACCESSORY => accessory(&req),
         proto::MODULE_APPLET => proto::applet_error(format!("Method not implemented. Method:{}", req.method), req.uuid.clone()),
         other => {
@@ -130,19 +132,137 @@ async fn common_utils(req: &Request, shared: &Shared) -> Value {
                 Err(e) => CommonResponse::error(e.to_string(), uuid),
             }
         }
+        // (storageName, keyType, base64, attach) — CAdES-T in Java.
+        "createCMSSignatureFromBase64" => cms_common(req, shared, CmsKind::Data { attached: flag(req, 3), timestamp: true }).await,
+        "createCAdESFromBase64" => cms_common(req, shared, CmsKind::Data { attached: flag(req, 3), timestamp: false }).await,
+        "createCAdESFromBase64Hash" => cms_common(req, shared, CmsKind::Hash).await,
+        // (storageName, keyType, filePath, attach)
+        "createCMSSignatureFromFile" => cms_common(req, shared, CmsKind::File { attached: flag(req, 3), timestamp: true }).await,
+        "createCAdESFromFile" => cms_common(req, shared, CmsKind::File { attached: flag(req, 3), timestamp: false }).await,
+        // (storageName, keyType, base64 cms)
+        "applyCAdEST" => {
+            let cms = req.arg_str(2).unwrap_or("").to_string();
+            match tokio::task::spawn_blocking(move || cms_api::apply_cades_t_blocking(&cms)).await {
+                Ok(Ok(b64)) => CommonResponse::ok(Value::String(b64), uuid),
+                Ok(Err(e)) => CommonResponse::error(e.to_string(), uuid),
+                Err(e) => CommonResponse::error(e.to_string(), uuid),
+            }
+        }
         other => CommonResponse::error(format!("Method {other} is not implemented yet"), uuid),
     };
     serde_json::to_value(resp).expect("serializable")
 }
 
-fn basics(req: &Request) -> Value {
+#[derive(Clone, Copy)]
+enum CmsKind {
+    Data { attached: bool, timestamp: bool },
+    File { attached: bool, timestamp: bool },
+    Hash,
+}
+
+fn flag(req: &Request, n: usize) -> bool {
+    match req.args.get(n) {
+        Some(Value::Bool(b)) => *b,
+        Some(Value::String(s)) => s.eq_ignore_ascii_case("true"),
+        _ => false,
+    }
+}
+
+/// Shared body of the commonUtils CMS family: args = (storageName, keyType, payload, flag?).
+async fn cms_common(req: &Request, shared: &Shared, kind: CmsKind) -> CommonResponse {
+    let uuid = req.uuid.clone();
+    let storage = req.arg_str(0).unwrap_or("PKCS12");
+    let key_type = req.arg_str(1).and_then(KeyType::parse);
+    let payload = req.arg_str(2).unwrap_or("").to_string();
+    let data = match kind {
+        CmsKind::Data { .. } | CmsKind::Hash => match cms_api::decode_b64(&payload) {
+            Ok(d) => d,
+            Err(e) => return CommonResponse::error(e.to_string(), uuid),
+        },
+        CmsKind::File { .. } => match tokio::fs::read(&payload).await {
+            Ok(d) => d,
+            Err(e) => return CommonResponse::error(format!("{payload}: {e}"), uuid),
+        },
+    };
+    let entry = match keys::select_entry(shared.ui.as_ref(), &shared.settings_path, storage, key_type).await {
+        Ok(Selection::Chosen(e)) => e,
+        Ok(Selection::Cancelled) => return CommonResponse::canceled(uuid),
+        Err(e) => return CommonResponse::error(e.to_string(), uuid),
+    };
+    let (attached, timestamp, digested) = match kind {
+        CmsKind::Data { attached, timestamp } | CmsKind::File { attached, timestamp } => (attached, timestamp, false),
+        CmsKind::Hash => (false, false, true),
+    };
+    let r = tokio::task::spawn_blocking(move || {
+        cms_api::sign_blocking(&entry, &CmsRequest { data: &data, attached, digested, timestamp })
+    })
+    .await;
+    match r {
+        Ok(Ok(b64)) => CommonResponse::ok(Value::String(b64), uuid),
+        Ok(Err(e)) => CommonResponse::error(e.to_string(), uuid),
+        Err(e) => CommonResponse::error(e.to_string(), uuid),
+    }
+}
+
+async fn basics(req: &Request, shared: &Shared) -> Value {
     let resp = match req.method.as_str() {
-        "sign" | "generateCsr" | "importCertificate" => {
+        "sign" => basics_sign(req, shared).await,
+        "generateCsr" | "importCertificate" => {
             BasicsResponse::error(BasicsFailure::GeneralError, format!("{} is not implemented yet", req.method))
         }
         _ => BasicsResponse::error(BasicsFailure::InvocationError, "unknown method"),
     };
     serde_json::to_value(resp).expect("serializable")
+}
+
+/// `basics.sign` (apiVersion 2), CMS only for now; `format: "xml"` arrives with stage 5.
+async fn basics_sign(req: &Request, shared: &Shared) -> BasicsResponse {
+    let a = &req.args;
+    let format = a.get("format").and_then(Value::as_str).unwrap_or("cms");
+    if format != "cms" {
+        return BasicsResponse::error(BasicsFailure::InvalidSigningParams, format!("format {format} is not supported yet"));
+    }
+    let sp = a.get("signingParams").cloned().unwrap_or(Value::Null);
+    let decode = sp.get("decode").and_then(Value::as_bool).unwrap_or(false);
+    let attached = sp.get("encapsulate").and_then(Value::as_bool).unwrap_or(false);
+    let digested = sp.get("digested").and_then(Value::as_bool).unwrap_or(false);
+    let timestamp = sp.get("tsaProfile").map(|v| !v.is_null()).unwrap_or(false);
+    let items: Vec<String> = match a.get("data") {
+        Some(Value::String(s)) => vec![s.clone()],
+        Some(Value::Array(v)) => v.iter().filter_map(|x| x.as_str().map(str::to_string)).collect(),
+        _ => return BasicsResponse::error(BasicsFailure::InvalidSigningParams, "data is required"),
+    };
+    let single = matches!(a.get("data"), Some(Value::String(_)));
+    // Key usage from signerParams.extKeyUsageOids: clientAuth → AUTHENTICATION, else SIGNATURE.
+    let key_type = a
+        .get("signerParams")
+        .and_then(|s| s.get("extKeyUsageOids"))
+        .and_then(Value::as_array)
+        .map(|v| if v.iter().any(|o| o.as_str() == Some("1.3.6.1.5.5.7.3.2")) { KeyType::Authentication } else { KeyType::Signature });
+    let entry = match keys::select_entry(shared.ui.as_ref(), &shared.settings_path, "PKCS12", key_type).await {
+        Ok(Selection::Chosen(e)) => e,
+        Ok(Selection::Cancelled) => return BasicsResponse::canceled(),
+        Err(e) => return BasicsResponse::error(BasicsFailure::SigningFailure, e.to_string()),
+    };
+    let cert_pem = entry.cert.pem().unwrap_or_default();
+    let r = tokio::task::spawn_blocking(move || -> anyhow::Result<Vec<String>> {
+        let mut out = Vec::new();
+        for item in items {
+            // Base64 input is the wire format; `decode` means "sign the decoded bytes", otherwise the text itself.
+            let data = if decode || digested { cms_api::decode_b64(&item)? } else { item.into_bytes() };
+            out.push(cms_api::sign_blocking(&entry, &CmsRequest { data: &data, attached, digested, timestamp })?);
+        }
+        Ok(out)
+    })
+    .await;
+    match r {
+        Ok(Ok(mut sigs)) => {
+            let signatures = if single { Value::String(sigs.remove(0)) } else { json!(sigs) };
+            BasicsResponse::ok(json!({ "signatures": signatures, "certificate": cert_pem }))
+        }
+        Ok(Err(e)) => BasicsResponse::error(BasicsFailure::SigningFailure, e.to_string()),
+        Err(e) => BasicsResponse::error(BasicsFailure::GeneralError, e.to_string()),
+    }
 }
 
 fn accessory(req: &Request) -> Value {

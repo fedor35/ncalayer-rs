@@ -93,8 +93,8 @@ GUI: Slint (уже знаком по vega-bs-config, рендерится под
 | 0 ✅ 02.10 | Скелет: wss на 13579 с локальным CA, фильтр 127.0.0.1, version/heartbeat, MODULE_NOT_FOUND | `ncalayer-client.js` подключается из Firefox, mocker-тесты sigex проходят |
 | 1 ✅ 02.10 | `gost3410`: подпись/проверка 512-A и 256-A, Стрибог; RSA через `rsa` | тест-векторы RFC 7836; проверка подписи настоящего серта НУЦ (цепочка ҰКО GOST 2022) |
 | 2 ✅ 02.10 (проверен на боевом GOST512 Фёдора) | `kz-pki`: чтение p12 НУЦ (3DES/RC2-40 PBE), KeyInfo как у оригинала, выбор по keyType/EKU | `getKeyInfo` отдаёт байт-в-байт такой же JSON, как Java (сверка на своих ключах) |
-| 3 | `kz-cms`: CAdES-BES attached/detached, +TSP → CAdES-T | подпись проверяется NCANode/Kalkan и принимается cabinet.stat.gov.kz (там CMS) |
-| 4 | commonUtils полностью + basics.sign(cms) | сдача формы на knp.kgd.gov.kz / cabinet.salyk.kz реальным ключом |
+| 3 ✅ 02.10 | `kz-cms`: CAdES-BES attached/detached, +TSP → CAdES-T | подпись проверяется NCANode/Kalkan и принимается cabinet.stat.gov.kz (там CMS) |
+| 4 ◐ 02.10 (CMS-семейство + basics.sign(cms) готовы, Kalkan VALID; signXml ждёт этап 5; живой прогон на сайте не сделан) | commonUtils полностью + basics.sign(cms) | сдача формы на knp.kgd.gov.kz / cabinet.salyk.kz реальным ключом |
 | 5 | `kz-xmldsig` + signXml/signXmls + basics.sign(xml) | egov.kz авторизация и подпись заявления |
 | 6 | GUI: диалоги Slint, трей, локаль, настройки (прокси, недавние ключи как в settings.json) | работает в Plasma Wayland и GNOME без X11 |
 | 7 | Упаковка: PKGBUILD/AUR, deb, AppImage; systemd --user unit; установка CA | «один пакет и работает» на Arch и Ubuntu |
@@ -156,3 +156,9 @@ documentolog, idocs…) — список `https://pki.gov.kz/docs/nl_ru/bundles/
 - Контейнеры Kalkan/BC — BER с неопределёнными длинами, `der` их не читает: в kz-pki свой BER→DER (`ber.rs`).
 - DN в формате BouncyCastle `X500Name.toString()`: RDN в порядке кодирования, `,` без пробела.
 - Перекрёстная проверка: Rust ⇄ Kalkan в обе стороны на 512-A (tests/kalkan_oracle.rs, tools/java-oracle).
+- CMS: подпись в SignerInfo тоже r‖s little-endian; AlgorithmIdentifier с NULL; SET атрибутов сортируется по
+  полной DER-кодировке (X.690 §11.6). Наш DER совпадает с Kalkan байт-в-байт кроме самой подписи.
+- По байткоду CommonUtils: createCMSSignatureFromBase64/FromFile ставят метку TSA всегда, createCAdES* — нет,
+  applyCAdEST добавляет к готовому CMS. basics.sign ставит TSA только при tsaProfile.
+- TSA НУЦ (http://tsp.pki.gov.kz, политика 1.2.398.3.3.2.6.4) выдаёт токен нашему запросу; Kalkan принимает CAdES-T.
+- Временный UI до Slint: kdialog/zenity через трейт `Ui`; `NCALAYER_TEST_KEY=path:pw` — headless для тестов.

@@ -2,6 +2,7 @@
 #![forbid(unsafe_code)]
 
 mod ca;
+mod cms_api;
 mod keys;
 mod server;
 mod ui;

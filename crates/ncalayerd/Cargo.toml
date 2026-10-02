@@ -10,6 +10,9 @@ authors.workspace = true
 [dependencies]
 nca-protocol = { path = "../nca-protocol" }
 kz-pki = { path = "../kz-pki" }
+kz-cms = { path = "../kz-cms" }
+rand = "0.10"
+base64 = "0.22"
 async-trait = "0.1"
 anyhow.workspace = true
 serde.workspace = true
