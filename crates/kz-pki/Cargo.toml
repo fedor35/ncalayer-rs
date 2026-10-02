@@ -1,0 +1,35 @@
+[package]
+name = "kz-pki"
+description = "PKCS#12 key containers and X.509 certificates of the Kazakhstan NCA (НУЦ РК) for an open NCALayer replacement"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+keywords = ["pkcs12", "x509", "gost", "kazakhstan", "ncalayer"]
+categories = ["cryptography"]
+
+[dependencies]
+thiserror = { workspace = true }
+tracing = { workspace = true }
+der = { version = "0.8", features = ["alloc", "oid", "pem"] }
+const-oid = "0.10"
+spki = { version = "0.8", features = ["alloc"] }
+pkcs8 = { version = "0.11", features = ["alloc", "encryption", "pkcs5", "3des", "sha1-insecure"] }
+pkcs5 = { version = "0.8", features = ["alloc", "pbes2", "3des", "sha1-insecure"] }
+pkcs12 = { version = "0.2.0-pre.0", default-features = false, features = ["kdf"] }
+x509-cert = { version = "0.3", features = ["pem"] }
+rsa = "0.10.0-rc.18"
+des = "0.9"
+rc2 = "0.9"
+cbc = "0.2"
+cipher = { version = "0.5", features = ["block-padding", "alloc"] }
+sha1 = "0.11"
+hmac = "0.13"
+digest = "0.11"
+time = { version = "0.3", features = ["formatting", "macros"] }
+zeroize = "1"
+subtle = "2"
+
+[dev-dependencies]
+hex = "0.4"

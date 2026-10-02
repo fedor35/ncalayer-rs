@@ -1,6 +1,6 @@
 [package]
 name = "gost3410"
-description = "Pure-Rust GOST R 34.10-2012 (RFC 7091) digital signatures over the curves used by the Kazakhstan NCA (RFC 7836 paramSets)"
+description = "Pure-Rust GOST R 34.10-2012 (RFC 7091) digital signatures over the curves used by the Kazakhstan NCA (RFC 7836 / RFC 4357 parameter sets)"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -16,7 +16,6 @@ streebog = "0.11"
 gost94 = "0.11"
 hmac = "0.13"
 digest = "0.11"
-subtle = "2"
 zeroize = "1"
 
 [dev-dependencies]

@@ -116,8 +116,13 @@ GUI: Slint (уже знаком по vega-bs-config, рендерится под
 2. TLS: свой локальный CA по умолчанию (как mkcert: корень → NSS Firefox/Chromium + /etc/ca-certificates),
    опция `--borrow-nca-cert` для заимствования ключа из бандла установленного NCALayer.
 3. Scope v1: PKCS12 + ГОСТ-2015 (256/512-A) + RSA. Токены и ГОСТ-2004 — этап 8.
-4. GUI: **Slint с Qt-бэкендом** (на Plasma — стиль и тема KDE), трей через StatusNotifierItem (`ksni`),
-   файловые диалоги через XDG-портал (`ashpd`) → родной диалог KDE/GNOME. Fallback — winit-бэкенд Slint.
+4. GUI: ядро демона не знает о тулките — интерфейс описан трейтом `Ui` (выбор ключа, запрос пароля,
+   уведомление в трее, окно настроек), фронтенд выбирается feature-флагом:
+   - `ui-slint` (по умолчанию): Slint с Qt-бэкендом (на Plasma — стиль и тема KDE), трей через
+     StatusNotifierItem (`ksni`), файловые диалоги через XDG-портал (`ashpd`). Fallback — winit-бэкенд.
+   - `ui-syngui`: фронтенд на [syngui](https://github.com/VitaminDB/syngui) (Rust, retained-mode, wgpu;
+     проект коллеги Фёдора, MIT/Apache-2.0). Боевой кейс для фреймворка; если потянет трей и портал-диалоги —
+     кандидат в основной. Риск: нестабильный API, зависимость от Vulkan/GL-драйвера на машинах без GPU.
 
 ## 5. Сторонние модули (bundles)
 
