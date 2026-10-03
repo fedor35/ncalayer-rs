@@ -197,7 +197,9 @@ fn nss_has_ca(db: &Path) -> bool {
 /// Returns the databases that were just fixed (the user must restart those browsers).
 pub fn install_missing_into_nss(paths: &Paths) -> Vec<PathBuf> {
     if Command::new("certutil").arg("-H").output().is_err() {
-        tracing::warn!("certutil не найден — корень CA в браузеры не установлен (пакет nss / libnss3-tools)");
+        tracing::warn!(
+            "certutil не найден — корень CA в браузеры не установлен (пакет nss / libnss3-tools)"
+        );
         return vec![];
     }
     let mut fixed = vec![];
@@ -216,7 +218,11 @@ pub fn install_missing_into_nss(paths: &Paths) -> Vec<PathBuf> {
                 tracing::info!("CA installed into {}", db.display());
                 fixed.push(db);
             }
-            Ok(o) => tracing::warn!("certutil {}: {}", db.display(), String::from_utf8_lossy(&o.stderr).trim()),
+            Ok(o) => tracing::warn!(
+                "certutil {}: {}",
+                db.display(),
+                String::from_utf8_lossy(&o.stderr).trim()
+            ),
             Err(e) => tracing::warn!("certutil: {e}"),
         }
     }

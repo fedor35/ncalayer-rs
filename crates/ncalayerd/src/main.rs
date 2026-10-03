@@ -129,7 +129,10 @@ fn run(port: u16, paths: &ca::Paths) -> Result<()> {
         let dialog = nca_ui::DialogUi::detect()?;
         dialog.set_locale(settings.locale().code());
         if !fixed.is_empty() {
-            runtime.block_on(dialog.notify("ncalayer-rs готов", "Сертификат доверия установлен в браузеры. Перезапустите браузер."));
+            runtime.block_on(dialog.notify(
+                "ncalayer-rs готов",
+                "Сертификат доверия установлен в браузеры. Перезапустите браузер.",
+            ));
         }
         runtime.block_on(server::run(port, certs, Arc::new(dialog), settings_path))
     }
