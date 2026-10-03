@@ -34,7 +34,7 @@ jobs:
           name: deb-appimage
           path: |
             target/debian/*.deb
-            target/appimage/*.AppImage
+            target/appimage/ncalayer-rs-*.AppImage
   arch:
     runs-on: ubuntu-latest
     container: archlinux:base-devel
@@ -64,5 +64,5 @@ jobs:
           generate_release_notes: true
           files: |
             dist/**/*.deb
-            dist/**/*.AppImage
+            dist/**/ncalayer-rs-*.AppImage
             dist/**/*.pkg.tar.zst
