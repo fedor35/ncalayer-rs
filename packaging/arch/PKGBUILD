@@ -22,6 +22,7 @@ package() {
   install -Dm755 target/release/ncalayerd "$pkgdir/usr/bin/ncalayerd"
   install -Dm644 packaging/ncalayerd.service "$pkgdir/usr/lib/systemd/user/ncalayerd.service"
   install -Dm644 packaging/ncalayerd.desktop "$pkgdir/usr/share/applications/ncalayerd.desktop"
+  install -Dm644 packaging/ncalayerd.desktop "$pkgdir/etc/xdg/autostart/ncalayerd.desktop"
   install -Dm644 packaging/ncalayer-rs.svg "$pkgdir/usr/share/icons/hicolor/scalable/apps/ncalayer-rs.svg"
   install -Dm644 packaging/ncalayer-rs.png "$pkgdir/usr/share/icons/hicolor/128x128/apps/ncalayer-rs.png"
   install -Dm644 README.md "$pkgdir/usr/share/doc/$pkgname/README.md"

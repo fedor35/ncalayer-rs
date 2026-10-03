@@ -22,14 +22,13 @@ GUI: Slint с Qt-бэкендом (стиль KDE), трей StatusNotifier, в�
 (фича `ui-slint`, по умолчанию; `--no-default-features` — диалоги kdialog/zenity). В работе: упаковка deb/AppImage,
 фронтенд на syngui, шимы сторонних модулей. План и факты — в [docs/PLAN.md](docs/PLAN.md).
 
-## Попробовать
+## Установка
 
-```
-cargo build --release -p ncalayerd
-./target/release/ncalayerd install-ca   # корень в NSS-базы Firefox/Chromium; перезапустить браузер
-./target/release/ncalayerd run          # оригинальный NCALayer должен быть выключен
-```
-Открыть `https://127.0.0.1:13579/` — страница покажет, отвечает ли WebSocket. Автозапуск: `packaging/ncalayerd.service`.
+Пакеты в [Releases](https://github.com/fedor35/ncalayer-rs/releases): `.deb` (Ubuntu/Debian/Mint), `.pkg.tar.zst` (Arch), `.AppImage`.
+После установки ничего настраивать не нужно: демон стартует при входе в сессию (`/etc/xdg/autostart`), при старте сам
+прописывает свой корневой сертификат в профили Firefox и Chromium и сообщает, если браузер надо перезапустить.
+Оригинальный NCALayer должен быть выключен — порт 13579 один на двоих, демон об этом предупредит.
+Проверка: открыть `https://127.0.0.1:13579/`. Из исходников: `cargo build --release -p ncalayerd && ./target/release/ncalayerd run`.
 
 ## Эталон и тесты
 

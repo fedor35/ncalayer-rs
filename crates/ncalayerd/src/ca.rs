@@ -183,6 +183,46 @@ pub fn nss_databases() -> Vec<PathBuf> {
     out
 }
 
+/// Is our root already trusted in this NSS database?
+fn nss_has_ca(db: &Path) -> bool {
+    Command::new("certutil")
+        .args(["-L", "-n", CA_NICKNAME, "-d"])
+        .arg(format!("sql:{}", db.display()))
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false)
+}
+
+/// Idempotent start-up step: add the root to every browser profile that lacks it.
+/// Returns the databases that were just fixed (the user must restart those browsers).
+pub fn install_missing_into_nss(paths: &Paths) -> Vec<PathBuf> {
+    if Command::new("certutil").arg("-H").output().is_err() {
+        tracing::warn!("certutil не найден — корень CA в браузеры не установлен (пакет nss / libnss3-tools)");
+        return vec![];
+    }
+    let mut fixed = vec![];
+    for db in nss_databases() {
+        if nss_has_ca(&db) {
+            continue;
+        }
+        let out = Command::new("certutil")
+            .args(["-A", "-n", CA_NICKNAME, "-t", "C,,", "-i"])
+            .arg(paths.ca_cert())
+            .arg("-d")
+            .arg(format!("sql:{}", db.display()))
+            .output();
+        match out {
+            Ok(o) if o.status.success() => {
+                tracing::info!("CA installed into {}", db.display());
+                fixed.push(db);
+            }
+            Ok(o) => tracing::warn!("certutil {}: {}", db.display(), String::from_utf8_lossy(&o.stderr).trim()),
+            Err(e) => tracing::warn!("certutil: {e}"),
+        }
+    }
+    fixed
+}
+
 /// Register the local root as a trusted TLS CA in every NSS db found. Needs `certutil` (nss).
 pub fn install_into_nss(paths: &Paths) -> Result<String> {
     if Command::new("certutil").arg("-H").output().is_err() {

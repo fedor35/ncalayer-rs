@@ -66,7 +66,24 @@ fn main() -> Result<()> {
 }
 
 fn run(port: u16, paths: &ca::Paths) -> Result<()> {
+    // Single instance / clash with the Java NCALayer: fail early with a human-readable message.
+    if let Err(e) = std::net::TcpListener::bind(("127.0.0.1", port)) {
+        let msg = format!(
+            "Порт {port} уже занят ({e}). Вероятно, запущен другой экземпляр ncalayer-rs или оригинальный NCALayer — закройте его."
+        );
+        tracing::error!("{msg}");
+        #[cfg(feature = "ui-slint")]
+        {
+            if let Ok(d) = nca_ui::DialogUi::detect() {
+                let rt = tokio::runtime::Runtime::new()?;
+                rt.block_on(d.error(&msg));
+            }
+        }
+        anyhow::bail!("{msg}");
+    }
     let certs = ca::ensure(paths)?;
+    // Zero-configuration trust: browsers installed later, or new profiles, get the root on next start.
+    let fixed = ca::install_missing_into_nss(paths);
     let settings_path = paths.dir.join("settings.json");
     let settings = nca_ui::Settings::load(&settings_path);
     let runtime = tokio::runtime::Runtime::new()?;
@@ -83,6 +100,17 @@ fn run(port: u16, paths: &ca::Paths) -> Result<()> {
         let gui = nca_ui_slint::SlintUi::new(settings_path.clone(), port)?;
         gui.set_locale(settings.locale().code());
         let ui: Arc<dyn Ui> = Arc::new(gui.clone());
+        if !fixed.is_empty() {
+            let ui_n = ui.clone();
+            let n = fixed.len();
+            runtime.spawn(async move {
+                ui_n.notify(
+                    "ncalayer-rs готов",
+                    &format!("Сертификат доверия установлен в {n} профил. браузера. Перезапустите браузер, если он был открыт."),
+                )
+                .await;
+            });
+        }
         std::thread::Builder::new()
             .name("tokio".into())
             .spawn(move || {
@@ -100,6 +128,9 @@ fn run(port: u16, paths: &ca::Paths) -> Result<()> {
     {
         let dialog = nca_ui::DialogUi::detect()?;
         dialog.set_locale(settings.locale().code());
+        if !fixed.is_empty() {
+            runtime.block_on(dialog.notify("ncalayer-rs готов", "Сертификат доверия установлен в браузеры. Перезапустите браузер."));
+        }
         runtime.block_on(server::run(port, certs, Arc::new(dialog), settings_path))
     }
 }

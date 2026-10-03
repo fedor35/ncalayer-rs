@@ -54,6 +54,7 @@ assets = [
   ["target/release/ncalayerd", "usr/bin/", "755"],
   ["../../packaging/ncalayerd.service", "usr/lib/systemd/user/", "644"],
   ["../../packaging/ncalayerd.desktop", "usr/share/applications/", "644"],
+  ["../../packaging/ncalayerd.desktop", "etc/xdg/autostart/", "644"],
   ["../../packaging/ncalayer-rs.svg", "usr/share/icons/hicolor/scalable/apps/", "644"],
   ["../../packaging/ncalayer-rs.png", "usr/share/icons/hicolor/128x128/apps/", "644"],
   ["../../README.md", "usr/share/doc/ncalayer-rs/", "644"],
