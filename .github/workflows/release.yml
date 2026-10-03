@@ -63,6 +63,6 @@ jobs:
           name: ncalayer-rs ${{ env.TAG }}
           generate_release_notes: true
           files: |
-            dist/*.deb
-            dist/*.AppImage
-            dist/*.pkg.tar.zst
+            dist/**/*.deb
+            dist/**/*.AppImage
+            dist/**/*.pkg.tar.zst
