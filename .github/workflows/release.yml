@@ -1,0 +1,68 @@
+name: Release
+# Запускается тегом v* (ручной релиз) или из bump.yml через workflow_dispatch после автоинкремента.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Тег релиза (vX.Y.Z)'
+        required: true
+permissions:
+  contents: write
+env:
+  TAG: ${{ github.event.inputs.tag || github.ref_name }}
+jobs:
+  deb-appimage:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: "${{ github.event.inputs.tag || github.ref }}" }
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: System deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qt6-base-dev qt6-base-dev-tools libgtk-3-dev libnss3-tools libdbus-1-dev pkg-config file patchelf libfuse2
+      - run: cargo install cargo-deb --locked
+      - run: cargo build --release --locked -p ncalayerd
+      - run: cargo deb -p ncalayerd --no-build
+      - name: AppImage
+        run: QMAKE=/usr/lib/qt6/bin/qmake6 packaging/appimage.sh "${TAG#v}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: deb-appimage
+          path: |
+            target/debian/*.deb
+            target/appimage/*.AppImage
+  arch:
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    steps:
+      - run: pacman -Syu --noconfirm rust git nss qt6-base gtk3 pkgconf
+      - uses: actions/checkout@v4
+        with: { ref: "${{ github.event.inputs.tag || github.ref }}" }
+      - name: makepkg (от непривилегированного пользователя)
+        run: |
+          useradd -m builder && chown -R builder: .
+          VER="${TAG#v}"
+          su builder -c "cd packaging/arch && PKGVER=$VER makepkg -f --noconfirm"
+          mkdir -p out && cp packaging/arch/*.pkg.tar.zst out/
+      - uses: actions/upload-artifact@v4
+        with: { name: arch, path: out/*.pkg.tar.zst }
+  publish:
+    needs: [deb-appimage, arch]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { path: dist, merge-multiple: true }
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.TAG }}
+          name: ncalayer-rs ${{ env.TAG }}
+          generate_release_notes: true
+          files: |
+            dist/*.deb
+            dist/*.AppImage
+            dist/*.pkg.tar.zst

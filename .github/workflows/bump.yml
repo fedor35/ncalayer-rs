@@ -1,0 +1,37 @@
+name: Bump version
+# Каждый пуш в main (кроме самих бамп-коммитов) → patch-версия +1 в Cargo.toml/PKGBUILD/Cargo.lock,
+# коммит «chore: release X.Y.Z», тег vX.Y.Z и запуск release.yml.
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+  actions: write
+concurrency: bump
+jobs:
+  bump:
+    if: "!startsWith(github.event.head_commit.message, 'chore: release')"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Next patch version
+        id: v
+        run: |
+          cur=$(sed -nE 's/^version = "([0-9]+\.[0-9]+\.[0-9]+)"/\1/p' Cargo.toml | head -1)
+          IFS=. read -r a b c <<<"$cur"; next="$a.$b.$((c+1))"
+          sed -i -E "0,/^version = \"$cur\"/s//version = \"$next\"/" Cargo.toml
+          sed -i -E "s/^pkgver=.*/pkgver=$next/" packaging/PKGBUILD
+          cargo update --workspace --offline 2>/dev/null || cargo update --workspace
+          echo "next=$next" >> "$GITHUB_OUTPUT"
+      - name: Commit and tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git commit -am "chore: release ${{ steps.v.outputs.next }}"
+          git tag "v${{ steps.v.outputs.next }}"
+          git push origin main --tags
+      - name: Trigger release build
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: gh workflow run release.yml -f tag="v${{ steps.v.outputs.next }}" --ref "v${{ steps.v.outputs.next }}"

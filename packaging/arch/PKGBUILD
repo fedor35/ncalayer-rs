@@ -1,33 +1,29 @@
-# Maintainer: Fedor Gubenkov <cto@teplosmart.kz>
+# PKGBUILD для сборки в CI из текущего дерева репозитория (без скачивания исходников).
+# Для пользователей — packaging/PKGBUILD (git-источник). Версия подставляется из Cargo.toml.
 pkgname=ncalayer-rs
-pkgver=1.0.0
+pkgver=${PKGVER:-0.0.0}
 pkgrel=1
 pkgdesc="Открытая замена NCALayer: локальный сервис подписи ЭЦП НУЦ РК (wss://127.0.0.1:13579) без Java"
-arch=('x86_64' 'aarch64')
+arch=('x86_64')
 url="https://github.com/fedor35/ncalayer-rs"
 license=('MIT OR Apache-2.0')
 depends=('nss' 'qt6-base' 'gtk3')
 optdepends=('kdialog: диалоги без GUI-фичи' 'zenity: диалоги вне KDE')
-makedepends=('cargo' 'git')
-source=("$pkgname::git+https://github.com/fedor35/ncalayer-rs.git")
-sha256sums=('SKIP')
+makedepends=('cargo')
+options=('!lto' '!debug')
 
 build() {
-  cd "$pkgname"
+  cd "$startdir/../.."
   cargo build --release --locked -p ncalayerd
 }
 
-check() {
-  cd "$pkgname"
-  cargo test --release --locked --workspace
-}
-
 package() {
-  cd "$pkgname"
+  cd "$startdir/../.."
   install -Dm755 target/release/ncalayerd "$pkgdir/usr/bin/ncalayerd"
   install -Dm644 packaging/ncalayerd.service "$pkgdir/usr/lib/systemd/user/ncalayerd.service"
   install -Dm644 packaging/ncalayerd.desktop "$pkgdir/usr/share/applications/ncalayerd.desktop"
   install -Dm644 packaging/ncalayer-rs.svg "$pkgdir/usr/share/icons/hicolor/scalable/apps/ncalayer-rs.svg"
+  install -Dm644 packaging/ncalayer-rs.png "$pkgdir/usr/share/icons/hicolor/128x128/apps/ncalayer-rs.png"
   install -Dm644 README.md "$pkgdir/usr/share/doc/$pkgname/README.md"
   install -Dm644 LICENSE-MIT "$pkgdir/usr/share/licenses/$pkgname/LICENSE-MIT"
   install -Dm644 LICENSE-APACHE "$pkgdir/usr/share/licenses/$pkgname/LICENSE-APACHE"

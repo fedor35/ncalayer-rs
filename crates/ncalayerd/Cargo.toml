@@ -36,3 +36,25 @@ x509-parser = "0.18"
 clap = { version = "4", features = ["derive", "env"] }
 directories = "6"
 time = "0.3"
+
+# cargo deb: `cargo install cargo-deb && cargo deb -p ncalayerd`
+[package.metadata.deb]
+name = "ncalayer-rs"
+maintainer = "Fedor Gubenkov <cto@teplosmart.kz>"
+copyright = "2026 Fedor Gubenkov"
+license-file = ["../../LICENSE-MIT", "0"]
+extended-description = """Открытая замена NCALayer: локальный сервис wss://127.0.0.1:13579, через который
+порталы госорганов Казахстана (egov.kz, salyk.kz, stat.gov.kz, knp.kgd.gov.kz) подписывают
+документы ЭЦП НУЦ РК. Без Java. После установки: `ncalayerd install-ca` и перезапуск браузера."""
+section = "utils"
+priority = "optional"
+depends = "$auto, libnss3-tools"
+recommends = "kdialog | zenity"
+assets = [
+  ["target/release/ncalayerd", "usr/bin/", "755"],
+  ["../../packaging/ncalayerd.service", "usr/lib/systemd/user/", "644"],
+  ["../../packaging/ncalayerd.desktop", "usr/share/applications/", "644"],
+  ["../../packaging/ncalayer-rs.svg", "usr/share/icons/hicolor/scalable/apps/", "644"],
+  ["../../packaging/ncalayer-rs.png", "usr/share/icons/hicolor/128x128/apps/", "644"],
+  ["../../README.md", "usr/share/doc/ncalayer-rs/", "644"],
+]
