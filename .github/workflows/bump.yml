@@ -1,13 +1,16 @@
 name: Bump version
 # Каждый пуш в main (кроме самих бамп-коммитов) → patch-версия +1 в Cargo.toml/PKGBUILD/Cargo.lock,
 # коммит «chore: release X.Y.Z», тег vX.Y.Z и запуск release.yml.
+# Следующая версия = max(версия в Cargo.toml, старший тег v*) + 1, чтобы висячие теги не блокировали.
 on:
   push:
     branches: [main]
 permissions:
   contents: write
   actions: write
-concurrency: bump
+concurrency:
+  group: bump
+  cancel-in-progress: false
 jobs:
   bump:
     if: "!startsWith(github.event.head_commit.message, 'chore: release')"
@@ -20,18 +23,25 @@ jobs:
         id: v
         run: |
           cur=$(sed -nE 's/^version = "([0-9]+\.[0-9]+\.[0-9]+)"/\1/p' Cargo.toml | head -1)
-          IFS=. read -r a b c <<<"$cur"; next="$a.$b.$((c+1))"
+          top=$(git tag -l 'v*' | sed 's/^v//' | sort -V | tail -1)
+          base=$(printf '%s\n%s\n' "$cur" "${top:-0.0.0}" | sort -V | tail -1)
+          IFS=. read -r a b c <<<"$base"; next="$a.$b.$((c+1))"
           sed -i -E "0,/^version = \"$cur\"/s//version = \"$next\"/" Cargo.toml
           sed -i -E "s/^pkgver=.*/pkgver=$next/" packaging/PKGBUILD
           cargo update --workspace --offline 2>/dev/null || cargo update --workspace
           echo "next=$next" >> "$GITHUB_OUTPUT"
-      - name: Commit and tag
+          echo "cur=$cur top=$top next=$next"
+      - name: Commit, push (с повтором при гонке), tag
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git commit -am "chore: release ${{ steps.v.outputs.next }}"
+          for i in 1 2 3 4 5; do
+            git push origin HEAD:main && break
+            echo "push rejected, rebasing (try $i)"; git fetch origin main && git rebase origin/main || exit 1
+          done
           git tag "v${{ steps.v.outputs.next }}"
-          git push origin main --tags
+          git push origin "v${{ steps.v.outputs.next }}"
       - name: Trigger release build
         env: { GH_TOKEN: "${{ github.token }}" }
         run: gh workflow run release.yml -f tag="v${{ steps.v.outputs.next }}" --ref "v${{ steps.v.outputs.next }}"
