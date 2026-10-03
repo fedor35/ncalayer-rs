@@ -87,8 +87,10 @@ impl ksni::Tray for TrayIcon {
     }
 
     fn icon_name(&self) -> String {
-        // Used when the icon theme has it (installed package); pixmaps below are the fallback.
-        "ncalayer-rs".into()
+        // Deliberately empty: XDG icon lookup falls back from "ncalayer-rs" to "ncalayer",
+        // which on machines with the Java NCALayer installed is *its* icon. The embedded
+        // pixmaps below are always ours.
+        String::new()
     }
 
     fn icon_pixmap(&self) -> Vec<ksni::Icon> {
