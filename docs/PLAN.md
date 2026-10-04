@@ -97,7 +97,7 @@ GUI: Slint (уже знаком по vega-bs-config, рендерится под
 | 4 ✅ 02.10 (**cabinet.stat.gov.kz принял подпись боевым ключом**; все методы commonUtils кроме createCAdESFromFile-вариантов с токенами) | commonUtils полностью + basics.sign(cms) | сдача формы на knp.kgd.gov.kz / cabinet.salyk.kz реальным ключом |
 | 5 ✅ 03.10 (**egov.kz: вход боевым ключом через basics.sign(xml) сработал**) | `kz-xmldsig` + signXml/signXmls + basics.sign(xml) | egov.kz авторизация и подпись заявления |
 | 6 ✅ 03.10 | GUI: диалоги Slint, трей, локаль, настройки (прокси, недавние ключи как в settings.json) | работает в Plasma Wayland и GNOME без X11 |
-| 7 | Упаковка: PKGBUILD/AUR, deb, AppImage; systemd --user unit; установка CA | «один пакет и работает» на Arch и Ubuntu |
+| 7 ✅ 03.10 (релизы 1.0.x: deb, AppImage, Arch; bump.yml) | Упаковка: PKGBUILD/AUR, deb, AppImage; systemd --user unit; установка CA | «один пакет и работает» на Arch и Ubuntu |
 | 8 | Позже: legacy ГОСТ-2004 (S-box сверить), токены по PC/SC, Windows/macOS, generateCsr/importCertificate | — |
 
 Этапы 1–3 и 5 — чистые библиотеки, их можно делать параллельно и тестировать без браузера.
