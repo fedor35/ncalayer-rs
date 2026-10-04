@@ -1,6 +1,6 @@
 # Maintainer: Fedor Gubenkov <cto@teplosmart.kz>
 pkgname=ncalayer-rs
-pkgver=1.0.2
+pkgver=1.0.3
 pkgrel=1
 pkgdesc="Открытая замена NCALayer: локальный сервис подписи ЭЦП НУЦ РК (wss://127.0.0.1:13579) без Java"
 arch=('x86_64' 'aarch64')
