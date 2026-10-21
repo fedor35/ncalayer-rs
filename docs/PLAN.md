@@ -112,7 +112,7 @@ GUI: Slint (уже знаком по vega-bs-config, рендерится под
 
 ## 4. Решения (приняты 02.10.2026)
 
-1. Название `ncalayer-rs` (рабочее), лицензия MIT OR Apache-2.0, публичный GitHub с первого релиза этапа 0.
+1. Название `ncalayer-rs` (рабочее), лицензия AGPL-3.0-or-later (до 22.10.2026 — MIT OR Apache-2.0), публичный GitHub с первого релиза этапа 0.
 2. TLS: свой локальный CA по умолчанию (как mkcert: корень → NSS Firefox/Chromium + /etc/ca-certificates),
    опция `--borrow-nca-cert` для заимствования ключа из бандла установленного NCALayer.
 3. Scope v1: PKCS12 + ГОСТ-2015 (256/512-A) + RSA. Токены и ГОСТ-2004 — этап 8.

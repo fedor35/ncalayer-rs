@@ -5,7 +5,7 @@ members = ["crates/*"]
 [workspace.package]
 version = "1.0.3"
 edition = "2021"
-license = "MIT OR Apache-2.0"
+license = "AGPL-3.0-or-later"
 repository = "https://github.com/fedor35/ncalayer-rs"
 authors = ["Fedor Gubenkov <cto@teplosmart.kz>"]
 

@@ -42,7 +42,7 @@ time = "0.3"
 name = "ncalayer-rs"
 maintainer = "Fedor Gubenkov <cto@teplosmart.kz>"
 copyright = "2026 Fedor Gubenkov"
-license-file = ["../../LICENSE-MIT", "0"]
+license-file = ["../../LICENSE", "0"]
 extended-description = """Открытая замена NCALayer: локальный сервис wss://127.0.0.1:13579, через который
 порталы госорганов Казахстана (egov.kz, salyk.kz, stat.gov.kz, knp.kgd.gov.kz) подписывают
 документы ЭЦП НУЦ РК. Без Java. После установки: `ncalayerd install-ca` и перезапуск браузера."""
