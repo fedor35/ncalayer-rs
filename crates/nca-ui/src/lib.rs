@@ -42,6 +42,19 @@ pub trait Ui: Send + Sync {
     /// `retry` is true after a wrong password. `None` = cancelled.
     async fn ask_password(&self, origin: &str, file_name: &str, retry: bool) -> Option<String>;
 
+    /// Folder picker (`basics.generateCsr` / `importCertificate`). `None` = cancelled.
+    async fn choose_folder(&self, title: &str, start_dir: Option<&Path>) -> Option<PathBuf>;
+
+    /// Ask for a new password, typed twice, for the key container `file_name`. The frontend
+    /// checks that both entries match; `error` (from a previous attempt) is shown to the user.
+    /// `None` = cancelled.
+    async fn ask_new_password(
+        &self,
+        origin: &str,
+        file_name: &str,
+        error: Option<&str>,
+    ) -> Option<String>;
+
     /// Modal error; returns when the user dismissed it.
     async fn error(&self, text: &str);
 
@@ -211,6 +224,68 @@ impl Ui for DialogUi {
         }
     }
 
+    async fn choose_folder(&self, title: &str, start_dir: Option<&Path>) -> Option<PathBuf> {
+        let dir = start_dir
+            .map(|p| p.display().to_string())
+            .unwrap_or_else(|| "~".into());
+        let out = match self.tool {
+            Tool::Kdialog => {
+                self.run(&["--title", title, "--getexistingdirectory", &dir])
+                    .await
+            }
+            Tool::Zenity => {
+                let t = format!("--title={title}");
+                let f = format!("--filename={dir}/");
+                self.run(&["--file-selection", "--directory", &t, &f]).await
+            }
+        };
+        out.map(PathBuf::from)
+    }
+
+    async fn ask_new_password(
+        &self,
+        origin: &str,
+        file_name: &str,
+        error: Option<&str>,
+    ) -> Option<String> {
+        let s = self.strings();
+        let mut prompt = format!(
+            "{}\n{}",
+            s.new_password_prompt.replace("{file}", file_name),
+            s.new_password_rules
+        );
+        if let Some(e) = error {
+            prompt = format!("{e}\n\n{prompt}");
+        }
+        let title = if origin.is_empty() {
+            s.new_password_title.to_string()
+        } else {
+            format!("{} — {origin}", s.new_password_title)
+        };
+        match self.tool {
+            // kdialog --newpassword asks twice and compares itself.
+            Tool::Kdialog => {
+                self.run(&["--title", &title, "--newpassword", &prompt])
+                    .await
+            }
+            Tool::Zenity => {
+                let t = format!("--title={title}");
+                let p = format!("--text={prompt}");
+                let p2 = format!("--text={}", s.repeat_password);
+                loop {
+                    let a = self.run(&["--password", &t, &p]).await?;
+                    let b = self.run(&["--password", &t, &p2]).await?;
+                    if a == b {
+                        return Some(a);
+                    }
+                    let _ = self
+                        .run(&["--error", &t, &format!("--text={}", s.passwords_mismatch)])
+                        .await;
+                }
+            }
+        }
+    }
+
     async fn error(&self, text: &str) {
         match self.tool {
             Tool::Kdialog => self.run(&["--title", "ncalayer-rs", "--error", text]).await,
@@ -257,6 +332,23 @@ impl Ui for FixedUi {
         Some(self.file.clone())
     }
     async fn ask_password(&self, _origin: &str, _file_name: &str, _retry: bool) -> Option<String> {
+        Some(self.password.clone())
+    }
+    /// The key file's folder.
+    async fn choose_folder(&self, _title: &str, _start_dir: Option<&Path>) -> Option<PathBuf> {
+        self.file.parent().map(Path::to_path_buf)
+    }
+    /// The test key password.
+    async fn ask_new_password(
+        &self,
+        _origin: &str,
+        _file_name: &str,
+        error: Option<&str>,
+    ) -> Option<String> {
+        // A rejected password would loop forever in a headless test.
+        if error.is_some() {
+            return None;
+        }
         Some(self.password.clone())
     }
     async fn error(&self, text: &str) {

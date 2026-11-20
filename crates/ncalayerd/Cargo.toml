@@ -19,6 +19,8 @@ nca-ui-slint = { path = "../nca-ui-slint", optional = true }
 kz-pki = { path = "../kz-pki" }
 kz-cms = { path = "../kz-cms" }
 kz-xmldsig = { path = "../kz-xmldsig" }
+gost3410 = { path = "../gost3410" }
+der = { version = "0.8", features = ["alloc", "oid"] }
 rand = "0.10"
 base64 = "0.22"
 async-trait = "0.1"

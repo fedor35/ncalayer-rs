@@ -92,6 +92,18 @@ pub struct Strings {
     pub tray_settings: &'static str,
     pub tray_quit: &'static str,
     pub tray_tooltip: &'static str,
+    /// Folder picker title for `basics.generateCsr`.
+    pub new_key_folder: &'static str,
+    /// Folder picker title for `basics.importCertificate`.
+    pub import_folder: &'static str,
+    pub new_password_title: &'static str,
+    /// "Come up with a password for {file}"
+    pub new_password_prompt: &'static str,
+    pub new_password_rules: &'static str,
+    pub repeat_password: &'static str,
+    pub passwords_mismatch: &'static str,
+    /// Notification after a successful import; "{file}".
+    pub key_saved: &'static str,
 }
 
 pub static RU: Strings = Strings {
@@ -122,6 +134,16 @@ pub static RU: Strings = Strings {
     tray_settings: "Настройки",
     tray_quit: "Выход",
     tray_tooltip: "ncalayer-rs — сервис подписи ЭЦП",
+    new_key_folder: "Папка для нового ключа ЭЦП",
+    import_folder: "Папка с ключом, созданным при подаче заявки",
+    new_password_title: "Пароль для ключа ЭЦП",
+    new_password_prompt:
+        "Придумайте пароль для ключа {file}. Он понадобится при каждой подписи — запишите его.",
+    new_password_rules:
+        "6–32 символа: латинские заглавная и строчная буквы и цифра; можно .?#$^+=!*()@%&_-",
+    repeat_password: "Повторите пароль",
+    passwords_mismatch: "Пароли не совпадают",
+    key_saved: "Ключ ЭЦП сохранён: {file}",
 };
 
 pub static KK: Strings = Strings {
@@ -152,6 +174,14 @@ pub static KK: Strings = Strings {
     tray_settings: "Баптаулар",
     tray_quit: "Шығу",
     tray_tooltip: "ncalayer-rs — ЭЦҚ қол қою қызметі",
+    new_key_folder: "Жаңа ЭЦҚ кілтіне арналған қалта",
+    import_folder: "Өтінім берген кезде жасалған кілт бар қалта",
+    new_password_title: "ЭЦҚ кілтінің құпиясөзі",
+    new_password_prompt: "{file} кілті үшін құпиясөз ойлап табыңыз. Ол әр қол қойған сайын қажет болады — жазып алыңыз.",
+    new_password_rules: "6–32 таңба: латынның бас және кіші әрпі және цифр; .?#$^+=!*()@%&_- болады",
+    repeat_password: "Құпиясөзді қайталаңыз",
+    passwords_mismatch: "Құпиясөздер сәйкес келмейді",
+    key_saved: "ЭЦҚ кілті сақталды: {file}",
 };
 
 pub static EN: Strings = Strings {
@@ -182,6 +212,14 @@ pub static EN: Strings = Strings {
     tray_settings: "Settings",
     tray_quit: "Quit",
     tray_tooltip: "ncalayer-rs — digital signature service",
+    new_key_folder: "Folder for the new signing key",
+    import_folder: "Folder with the key created when you applied",
+    new_password_title: "Signing key password",
+    new_password_prompt: "Choose a password for the key {file}. You will need it for every signature — write it down.",
+    new_password_rules: "6–32 characters: an upper- and a lower-case Latin letter and a digit; .?#$^+=!*()@%&_- allowed",
+    repeat_password: "Repeat the password",
+    passwords_mismatch: "Passwords do not match",
+    key_saved: "Signing key saved: {file}",
 };
 
 #[cfg(test)]

@@ -20,6 +20,45 @@ pub(crate) async fn pick(
     }
 }
 
+/// Folder picker: portal (`directory: true`), `rfd` as a fallback.
+pub(crate) async fn pick_folder(title: &str, start_dir: Option<&Path>) -> Option<PathBuf> {
+    match portal_folder(title, start_dir).await {
+        Ok(r) => r,
+        Err(e) => {
+            tracing::warn!("file chooser portal unavailable ({e}); falling back to rfd");
+            let mut dialog = rfd::AsyncFileDialog::new().set_title(title);
+            if let Some(dir) = start_dir {
+                dialog = dialog.set_directory(dir);
+            }
+            dialog.pick_folder().await.map(|h| h.path().to_path_buf())
+        }
+    }
+}
+
+async fn portal_folder(
+    title: &str,
+    start_dir: Option<&Path>,
+) -> Result<Option<PathBuf>, ashpd::Error> {
+    use ashpd::desktop::file_chooser::SelectedFiles;
+    let mut req = SelectedFiles::open_file()
+        .title(title)
+        .modal(true)
+        .multiple(false)
+        .directory(true);
+    if let Some(dir) = start_dir {
+        req = req.current_folder(dir)?;
+    }
+    let response = match req.send().await?.response() {
+        Ok(r) => r,
+        Err(ashpd::Error::Response(ashpd::desktop::ResponseError::Cancelled)) => return Ok(None),
+        Err(e) => return Err(e),
+    };
+    Ok(response
+        .uris()
+        .first()
+        .and_then(|u| file_uri_to_path(u.as_str())))
+}
+
 async fn portal(
     title: &str,
     filter_label: &str,

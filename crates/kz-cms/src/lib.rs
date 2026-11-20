@@ -26,6 +26,7 @@
 #![warn(missing_docs)]
 
 pub mod algo;
+pub mod csr;
 mod der_util;
 pub mod error;
 pub mod oid;

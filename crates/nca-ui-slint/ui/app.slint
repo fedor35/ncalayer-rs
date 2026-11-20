@@ -22,6 +22,11 @@ export struct Texts {
     recent-keys: string,
     remove: string,
     start-minimized: string,
+    new-password-title: string,
+    new-password-prompt: string,
+    new-password-rules: string,
+    repeat-password: string,
+    passwords-mismatch: string,
 }
 
 global Theme {
@@ -113,6 +118,66 @@ export component PasswordDialog inherits Window {
                 Rectangle { horizontal-stretch: 1; }
                 Button { text: t.cancel; clicked => { root.cancel(); } }
                 Button { text: t.ok; primary: true; clicked => { root.confirm(pw.text); } }
+            }
+        }
+    }
+}
+
+// New password for a freshly issued key container (basics.importCertificate): typed twice.
+export component NewPasswordDialog inherits Window {
+    in property <Texts> t;
+    in property <string> origin;
+    in property <string> error;
+    callback confirm(string);
+    callback cancel();
+    property <bool> mismatch: false;
+
+    title: t.new-password-title;
+    icon: Theme.icon;
+    preferred-width: 480px;
+    min-width: 380px;
+    // Wrapped texts are under-measured by the layout; keep the buttons on screen.
+    min-height: 380px;
+    forward-focus: pw1;
+
+    function submit() {
+        if (pw1.text != pw2.text) { mismatch = true; return; }
+        root.confirm(pw1.text);
+    }
+
+    FocusScope {
+        key-pressed(event) => {
+            if (event.text == Key.Escape) { root.cancel(); return EventResult.accept; }
+            EventResult.reject
+        }
+        VerticalBox {
+            spacing: 8px;
+            if origin != "" : Text { text: origin; font-weight: 700; wrap: word-wrap; }
+            Text { text: t.new-password-prompt; wrap: word-wrap; }
+            Text { text: t.new-password-rules; wrap: word-wrap; color: #7f8c8d; }
+            pw1 := LineEdit {
+                input-type: show.checked ? InputType.text : InputType.password;
+                edited => { mismatch = false; }
+                accepted => { pw2.focus(); }
+            }
+            Text { text: t.repeat-password; }
+            pw2 := LineEdit {
+                input-type: show.checked ? InputType.text : InputType.password;
+                edited => { mismatch = false; }
+                accepted => { submit(); }
+            }
+            HorizontalBox {
+                padding: 0;
+                show := CheckBox { text: t.show-password; }
+                Rectangle { horizontal-stretch: 1; }
+            }
+            if mismatch : Text { text: t.passwords-mismatch; color: #c0392b; font-weight: 700; }
+            if !mismatch && error != "" : Text { text: error; color: #c0392b; font-weight: 700; wrap: word-wrap; }
+            HorizontalBox {
+                padding: 0;
+                Rectangle { horizontal-stretch: 1; }
+                Button { text: t.cancel; clicked => { root.cancel(); } }
+                Button { text: t.ok; primary: true; clicked => { submit(); } }
             }
         }
     }

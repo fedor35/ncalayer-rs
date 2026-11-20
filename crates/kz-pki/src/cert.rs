@@ -172,6 +172,28 @@ impl Cert {
             .map(|k| hex_lower(k.as_bytes())))
     }
 
+    /// SubjectKeyIdentifier bytes (NCALayer's alias for the key, as hex), if present.
+    pub fn subject_key_identifier(&self) -> Result<Option<Vec<u8>>> {
+        let ext = self
+            .inner
+            .tbs_certificate()
+            .get_extension::<x509_cert::ext::pkix::SubjectKeyIdentifier>()?;
+        Ok(ext.map(|(_, k)| k.0.as_bytes().to_vec()))
+    }
+
+    /// Storage OID from the NCA `keystore_branch` extension (`1.2.398.3.3.5`):
+    /// `SEQUENCE { storage OID, path UTF8String OPTIONAL }`. `None` if absent.
+    pub fn keystore_oid(&self) -> Result<Option<ObjectIdentifier>> {
+        let Some(exts) = self.inner.tbs_certificate().extensions() else {
+            return Ok(None);
+        };
+        let Some(ext) = exts.iter().find(|e| e.extn_id == oid::KEYSTORE_ARC) else {
+            return Ok(None);
+        };
+        let node = crate::ber::Node::parse(ext.extn_value.as_bytes())?;
+        Ok(Some(node.child(0)?.oid()?))
+    }
+
     /// Extended key usage OIDs.
     pub fn extended_key_usage(&self) -> Result<Vec<ObjectIdentifier>> {
         let ext = self
