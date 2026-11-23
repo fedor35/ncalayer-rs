@@ -124,6 +124,95 @@ impl PrivateKey {
             PrivateKey::Rsa(_) => "RSA",
         }
     }
+
+    /// DER `PrivateKeyInfo` exactly as Kalkan writes a GOST R 34.10-2015 key:
+    /// `SEQUENCE { 0, SEQUENCE { keyOid, SEQUENCE { paramSet, digest } },
+    /// OCTET STRING { OCTET STRING d (little-endian) } }`.
+    /// Only GOST 2015 keys can be written.
+    pub fn to_pkcs8_der(&self) -> Result<zeroize::Zeroizing<Vec<u8>>> {
+        use crate::derw;
+        let PrivateKey::Gost2015 { curve, d } = self else {
+            return Err(Error::Unsupported(format!(
+                "writing {} private keys",
+                self.algorithm()
+            )));
+        };
+        let len = curve.scalar_len();
+        if d.len() > len {
+            return Err(Error::PrivateKey("scalar longer than the curve".into()));
+        }
+        let mut le = zeroize::Zeroizing::new(vec![0u8; len]);
+        for (i, b) in d.iter().rev().enumerate() {
+            le[i] = *b;
+        }
+        let alg = derw::sequence(&[
+            &derw::oid(&curve.key_oid()),
+            &derw::sequence(&[
+                &derw::oid(&curve.param_oid()),
+                &derw::oid(&curve.hash_oid()),
+            ]),
+        ]);
+        let inner = zeroize::Zeroizing::new(derw::octet_string(&le));
+        let outer = zeroize::Zeroizing::new(derw::octet_string(&inner));
+        Ok(zeroize::Zeroizing::new(derw::sequence(&[
+            &derw::integer_u64(0),
+            &alg,
+            &outer,
+        ])))
+    }
+}
+
+impl PublicKey {
+    /// DER `SubjectPublicKeyInfo` as Kalkan writes a GOST R 34.10-2015 key:
+    /// algorithm with `{ paramSet, digest }` parameters and the point as
+    /// `BIT STRING { OCTET STRING (x ‖ y, each little-endian) }`.
+    pub fn to_spki_der(&self) -> Result<Vec<u8>> {
+        use crate::derw;
+        let PublicKey::Gost2015 { curve, x, y } = self else {
+            return Err(Error::Unsupported(format!(
+                "writing {} public keys",
+                self.algorithm()
+            )));
+        };
+        let len = curve.scalar_len();
+        let le = |v: &[u8]| {
+            let mut out = vec![0u8; len];
+            for (i, b) in v.iter().rev().enumerate().take(len) {
+                out[i] = *b;
+            }
+            out
+        };
+        let mut point = le(x);
+        point.extend(le(y));
+        let mut bits = vec![0u8];
+        bits.extend(derw::octet_string(&point));
+        let alg = derw::sequence(&[
+            &derw::oid(&curve.key_oid()),
+            &derw::sequence(&[
+                &derw::oid(&curve.param_oid()),
+                &derw::oid(&curve.hash_oid()),
+            ]),
+        ]);
+        Ok(derw::sequence(&[&alg, &derw::tlv(0x03, &bits)]))
+    }
+
+    /// Kalkan's key identifier (`KALKANUtils.createKeyId`): SHA-1 over the contents of the
+    /// `subjectPublicKey` BIT STRING (without the unused-bits octet). The NCA puts the same
+    /// value into the certificate's SubjectKeyIdentifier, and NCALayer uses its hex as the alias.
+    pub fn key_id(&self) -> Result<Vec<u8>> {
+        key_id_of_spki(&self.to_spki_der()?)
+    }
+}
+
+/// Key identifier of any `SubjectPublicKeyInfo` (DER), as Kalkan computes it.
+pub fn key_id_of_spki(spki_der: &[u8]) -> Result<Vec<u8>> {
+    use sha1::Digest;
+    let spki = SubjectPublicKeyInfoOwned::from_der(spki_der)?;
+    let bits = spki
+        .subject_public_key
+        .as_bytes()
+        .ok_or_else(|| Error::Asn1("public key BIT STRING has unused bits".into()))?;
+    Ok(sha1::Sha1::digest(bits).to_vec())
 }
 
 /// A public key taken from a certificate's `SubjectPublicKeyInfo`.

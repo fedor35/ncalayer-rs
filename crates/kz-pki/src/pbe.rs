@@ -46,6 +46,64 @@ pub fn decrypt(
     }
 }
 
+/// Legacy PKCS#12 PBE schemes this module can encrypt with (what Kalkan writes:
+/// 3DES for the key bag, 40-bit RC2 for the certificate `EncryptedData`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EncryptScheme {
+    /// `pbeWithSHAAnd3-KeyTripleDES-CBC`.
+    Sha1TripleDes,
+    /// `pbeWithSHAAnd40BitRC2-CBC`.
+    Sha1Rc2_40,
+}
+
+/// Encrypt `plaintext` under a legacy PKCS#12 PBE scheme with the given salt and iteration
+/// count. Returns the DER `AlgorithmIdentifier` and the ciphertext.
+pub fn encrypt(
+    scheme: EncryptScheme,
+    password: &str,
+    salt: &[u8],
+    iterations: u32,
+    plaintext: &[u8],
+) -> Result<(Vec<u8>, Vec<u8>)> {
+    use crate::derw;
+    use cipher::BlockModeEncrypt;
+    let it = i32::try_from(iterations)
+        .map_err(|_| Error::Asn1("iteration count out of range".into()))?;
+    let alg_oid = match scheme {
+        EncryptScheme::Sha1TripleDes => oid::PBE_SHA1_3DES,
+        EncryptScheme::Sha1Rc2_40 => oid::PBE_SHA1_RC2_40,
+    };
+    let key_len = match scheme {
+        EncryptScheme::Sha1TripleDes => 24,
+        EncryptScheme::Sha1Rc2_40 => 5,
+    };
+    let key = Zeroizing::new(derive_key_utf8::<Sha1>(
+        password,
+        salt,
+        Pkcs12KeyType::EncryptionKey,
+        it,
+        key_len,
+    )?);
+    let iv = derive_key_utf8::<Sha1>(password, salt, Pkcs12KeyType::Iv, it, 8)?;
+    let ct = match scheme {
+        EncryptScheme::Sha1TripleDes => {
+            cbc::Encryptor::<des::TdesEde3>::new_from_slices(&key, &iv)?
+                .encrypt_padded_vec::<Pkcs7>(plaintext)
+        }
+        EncryptScheme::Sha1Rc2_40 => {
+            let cipher = rc2::Rc2::new_with_eff_key_len(&key, 40);
+            cbc::Encryptor::<rc2::Rc2>::inner_iv_slice_init(cipher, &iv)?
+                .encrypt_padded_vec::<Pkcs7>(plaintext)
+        }
+    };
+    let params = derw::sequence(&[
+        &derw::octet_string(salt),
+        &derw::integer_u64(iterations.into()),
+    ]);
+    let alg = derw::sequence(&[&derw::oid(&alg_oid), &params]);
+    Ok((alg, ct))
+}
+
 fn pkcs12_kdf(
     alg: &AlgorithmIdentifierOwned,
     password: &str,

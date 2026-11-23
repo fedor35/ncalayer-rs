@@ -8,6 +8,7 @@
 
 pub mod ber;
 pub mod cert;
+mod derw;
 pub mod error;
 pub mod key;
 pub mod oid;
@@ -16,5 +17,5 @@ pub mod pkcs12;
 
 pub use cert::{Cert, KeyUsageType};
 pub use error::{Error, Result};
-pub use key::{Gost2015Curve, PrivateKey, PublicKey};
-pub use pkcs12::{Entry, KeyStore};
+pub use key::{key_id_of_spki, Gost2015Curve, PrivateKey, PublicKey};
+pub use pkcs12::{Entry, KeyStore, RawCert, RawKey, RawStore};

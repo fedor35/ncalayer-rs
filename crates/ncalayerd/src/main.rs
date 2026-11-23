@@ -7,6 +7,7 @@
 
 mod ca;
 mod cms_api;
+mod csr_api;
 mod keys;
 mod server;
 
@@ -42,6 +43,30 @@ enum Cmd {
     InstallCa,
     /// Показать пути и состояние сертификатов
     Status,
+    /// Отладка basics.generateCsr: ключ GOST512 и запрос в папку (как NCALayer)
+    #[command(hide = true)]
+    GenCsr {
+        #[arg(long)]
+        dir: PathBuf,
+        #[arg(long)]
+        password: String,
+        /// DN как в запросе сайта: {"2.5.4.3":"…", …}
+        #[arg(long)]
+        dn: String,
+        #[arg(long)]
+        email: Option<String>,
+    },
+    /// Отладка basics.importCertificate: сертификаты (PEM) в ключ из папки, смена пароля
+    #[command(hide = true)]
+    ImportCert {
+        #[arg(long)]
+        dir: PathBuf,
+        #[arg(long)]
+        password: String,
+        #[arg(long)]
+        new_password: String,
+        certs: Vec<PathBuf>,
+    },
 }
 
 fn main() -> Result<()> {
@@ -60,6 +85,42 @@ fn main() -> Result<()> {
         }
         Cmd::Status => {
             println!("{}", ca::status(&paths)?);
+            Ok(())
+        }
+        Cmd::GenCsr {
+            dir,
+            password,
+            dn,
+            email,
+        } => {
+            let dn: serde_json::Map<String, serde_json::Value> = serde_json::from_str(&dn)?;
+            let subject = csr_api::subject_from_json(&dn)?;
+            let (pem, path) = csr_api::generate(
+                &dir,
+                &password,
+                csr_api::GOST512_SIGNATURE,
+                512,
+                subject,
+                email,
+                vec![],
+            )?;
+            print!("{pem}");
+            eprintln!("{}", path.display());
+            Ok(())
+        }
+        Cmd::ImportCert {
+            dir,
+            password,
+            new_password,
+            certs,
+        } => {
+            let certs = certs
+                .iter()
+                .map(|p| csr_api::parse_cert(&std::fs::read_to_string(p)?))
+                .collect::<Result<Vec<_>>>()?;
+            for p in csr_api::import(&dir, &password, &certs, &new_password)? {
+                println!("{}", p.display());
+            }
             Ok(())
         }
     }

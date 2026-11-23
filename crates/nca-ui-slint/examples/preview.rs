@@ -7,7 +7,9 @@
 //! With a snapshot directory the windows are rendered, written as PNG files and the program
 //! exits; without it they stay open until closed.
 
-use nca_ui_slint::generated::{ErrorDialog, KeyChooser, PasswordDialog, SettingsWindow};
+use nca_ui_slint::generated::{
+    ErrorDialog, KeyChooser, NewPasswordDialog, PasswordDialog, SettingsWindow,
+};
 use nca_ui_slint::texts_for;
 use slint::{ComponentHandle, ModelRc, SharedString, VecModel};
 use std::path::Path;
@@ -43,6 +45,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     password.set_retry(true);
     password.show()?;
 
+    let new_password = NewPasswordDialog::new()?;
+    new_password.set_t(texts_for(locale, "https://did.pki.gov.kz", file));
+    new_password.set_origin("https://did.pki.gov.kz".into());
+    new_password
+        .set_error("Пароль должен содержать заглавную и строчную латинскую букву и цифру".into());
+    new_password.show()?;
+
     let error = ErrorDialog::new()?;
     error.set_t(texts_for(locale, origin, file));
     error.set_message(
@@ -74,18 +83,30 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // Give the compositor a moment to map the windows, then snapshot. The snapshot is
         // posted as a separate event: taking it inside the timer callback re-enters the
         // timer machinery on the Qt backend ("Recursion in timer code").
-        let (c, p, e, s) = (
+        let (c, p, n, e, s) = (
             chooser.as_weak(),
             password.as_weak(),
+            new_password.as_weak(),
             error.as_weak(),
             settings.as_weak(),
         );
         slint::Timer::single_shot(std::time::Duration::from_millis(1500), move || {
-            let (c, p, e, s, dir) = (c.clone(), p.clone(), e.clone(), s.clone(), dir.clone());
+            let (c, p, n, e, s, dir) = (
+                c.clone(),
+                p.clone(),
+                n.clone(),
+                e.clone(),
+                s.clone(),
+                dir.clone(),
+            );
             let _ = slint::invoke_from_event_loop(move || {
                 let windows = [
                     ("chooser", c.upgrade().map(|w| w.window().take_snapshot())),
                     ("password", p.upgrade().map(|w| w.window().take_snapshot())),
+                    (
+                        "new-password",
+                        n.upgrade().map(|w| w.window().take_snapshot()),
+                    ),
                     ("error", e.upgrade().map(|w| w.window().take_snapshot())),
                     ("settings", s.upgrade().map(|w| w.window().take_snapshot())),
                 ];

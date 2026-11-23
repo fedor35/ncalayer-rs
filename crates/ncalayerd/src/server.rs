@@ -20,7 +20,7 @@ use nca_protocol::{self as proto, BasicsFailure, BasicsResponse, CommonResponse,
 use nca_ui::{Settings, Ui};
 use serde_json::{json, Value};
 use std::net::SocketAddr;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 #[derive(Clone)]
@@ -32,6 +32,13 @@ struct Shared {
     port: u16,
     ui: Arc<dyn Ui>,
     settings_path: PathBuf,
+}
+
+impl Shared {
+    /// UI strings in the saved interface language.
+    fn ui_strings(&self) -> &'static nca_ui::Strings {
+        Settings::load(&self.settings_path).locale().strings()
+    }
 }
 
 pub async fn run(
@@ -430,13 +437,252 @@ async fn cms_common(req: &Request, origin: &str, shared: &Shared, kind: CmsKind)
 async fn basics(req: &Request, origin: &str, shared: &Shared) -> Value {
     let resp = match req.method.as_str() {
         "sign" => basics_sign(req, origin, shared).await,
-        "generateCsr" | "importCertificate" => BasicsResponse::error(
-            BasicsFailure::GeneralError,
-            format!("{} is not implemented yet", req.method),
-        ),
+        "generateCsr" => basics_generate_csr(req, origin, shared).await,
+        "importCertificate" => basics_import_certificate(req, origin, shared).await,
         _ => BasicsResponse::error(BasicsFailure::InvocationError, "unknown method"),
     };
     serde_json::to_value(resp).expect("serializable")
+}
+
+/// Starting folder for folder pickers: the folder of the most recent key, else home.
+fn default_key_dir(shared: &Shared) -> Option<PathBuf> {
+    Settings::load(&shared.settings_path)
+        .recent
+        .first()
+        .and_then(|p| p.parent())
+        .map(Path::to_path_buf)
+        .or_else(|| std::env::var_os("HOME").map(PathBuf::from))
+}
+
+/// `basics.generateCsr` (PKIEssentials): new key file(s) in a folder the user picks,
+/// `{pems: [...]}` back. Only file storage (PKCS12) and GOST 2015-512 are implemented.
+async fn basics_generate_csr(req: &Request, origin: &str, shared: &Shared) -> BasicsResponse {
+    let fail = |m: String| BasicsResponse::error(BasicsFailure::CsrGeneratingFailure, m);
+    let a = &req.args;
+    let storages: Vec<&str> = a
+        .get("allowedStorages")
+        .and_then(Value::as_array)
+        .map(|v| v.iter().filter_map(Value::as_str).collect())
+        .unwrap_or_default();
+    if !storages.contains(&"PKCS12") {
+        return fail(format!(
+            "storages {storages:?}: only PKCS12 (key file) is supported by ncalayer-rs"
+        ));
+    }
+    let default_password = a
+        .get("defaultPassword")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_string();
+    let Some(dn) = a.get("dn").and_then(Value::as_object) else {
+        return fail("dn is missing".into());
+    };
+    let subject = match crate::csr_api::subject_from_json(dn) {
+        Ok(s) => s,
+        Err(e) => return fail(e.to_string()),
+    };
+    let email = a
+        .get("email")
+        .and_then(Value::as_str)
+        .map(str::to_string)
+        .filter(|e| !e.is_empty());
+    // NCALayer reads it with optJSONArray: a string ("") means "none".
+    let alt_names: Vec<String> = a
+        .get("subjectAltNames")
+        .and_then(Value::as_array)
+        .map(|v| {
+            v.iter()
+                .map(|x| {
+                    x.as_str()
+                        .map(str::to_string)
+                        .unwrap_or_else(|| x.to_string())
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    if !alt_names.is_empty() {
+        let cn = dn.get("2.5.4.3").and_then(Value::as_str).unwrap_or("");
+        if !alt_names.iter().any(|n| n == cn) {
+            return fail(
+                "Subject alternative names do not contain corresponding common name".into(),
+            );
+        }
+    }
+    let params: Vec<(String, u32)> = a
+        .get("params")
+        .and_then(Value::as_array)
+        .map(|v| {
+            v.iter()
+                .map(|p| {
+                    (
+                        p.get("algorithm")
+                            .and_then(Value::as_str)
+                            .unwrap_or("")
+                            .to_string(),
+                        p.get("length").and_then(Value::as_u64).unwrap_or(0) as u32,
+                    )
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    if params.is_empty() {
+        return fail("params is missing".into());
+    }
+    if let Some(l) = a.get("locale").and_then(Value::as_str) {
+        shared.ui.set_locale(l);
+    }
+    let s = shared.ui_strings();
+    let title = if origin.is_empty() {
+        s.new_key_folder.to_string()
+    } else {
+        format!("{} — {origin}", s.new_key_folder)
+    };
+    let Some(folder) = shared
+        .ui
+        .choose_folder(&title, default_key_dir(shared).as_deref())
+        .await
+    else {
+        return BasicsResponse::canceled();
+    };
+    let mut pems = Vec::new();
+    for (alg, len) in params {
+        let folder = folder.clone();
+        let pw = default_password.clone();
+        let subject = subject.clone();
+        let email = email.clone();
+        let alt = alt_names.clone();
+        let r = tokio::task::spawn_blocking(move || {
+            crate::csr_api::generate(&folder, &pw, &alg, len, subject, email, alt)
+        })
+        .await;
+        match r {
+            Ok(Ok((pem, _path))) => pems.push(pem),
+            Ok(Err(e)) => {
+                shared.ui.error(&format!("{e:#}")).await;
+                return fail(format!("{e:#}"));
+            }
+            Err(e) => return fail(e.to_string()),
+        }
+    }
+    BasicsResponse::with_body(json!({ "pems": pems }))
+}
+
+/// `basics.importCertificate`: put the issued certificate(s) next to the key generated by
+/// `generateCsr` and protect the container with a password the user chooses.
+async fn basics_import_certificate(req: &Request, origin: &str, shared: &Shared) -> BasicsResponse {
+    let fail = |code, m: String| BasicsResponse::error(code, m);
+    let a = &req.args;
+    let storage = a
+        .get("allowedStorage")
+        .and_then(Value::as_str)
+        .unwrap_or("");
+    if storage != "PKCS12" {
+        return fail(
+            BasicsFailure::CertificateImportingFailure,
+            format!("storage {storage}: only PKCS12 (key file) is supported by ncalayer-rs"),
+        );
+    }
+    let default_password = a
+        .get("defaultPassword")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_string();
+    let certs: Vec<kz_pki::Cert> = match a.get("certificates").and_then(Value::as_array) {
+        Some(v) if !v.is_empty() => {
+            let mut out = Vec::new();
+            for c in v {
+                match c.as_str().map(crate::csr_api::parse_cert) {
+                    Some(Ok(cert)) => out.push(cert),
+                    _ => {
+                        return fail(
+                            BasicsFailure::InvalidImportingCertificate,
+                            "Importing certificate is invalid.".into(),
+                        )
+                    }
+                }
+            }
+            out
+        }
+        _ => {
+            return fail(
+                BasicsFailure::InvalidImportingCertificate,
+                "certificates is missing".into(),
+            )
+        }
+    };
+    let s = shared.ui_strings();
+    // The folder: keystorePath from the request when it exists, otherwise ask.
+    let given = a
+        .get("keystorePath")
+        .and_then(Value::as_str)
+        .filter(|p| !p.is_empty())
+        .map(PathBuf::from)
+        .filter(|p| p.is_dir());
+    let folder = match given {
+        Some(f) => f,
+        None => {
+            let title = if origin.is_empty() {
+                s.import_folder.to_string()
+            } else {
+                format!("{} — {origin}", s.import_folder)
+            };
+            match shared
+                .ui
+                .choose_folder(&title, default_key_dir(shared).as_deref())
+                .await
+            {
+                Some(f) => f,
+                None => return BasicsResponse::canceled(),
+            }
+        }
+    };
+    let file_hint = certs
+        .first()
+        .and_then(|c| c.subject_key_identifier().ok().flatten())
+        .map(|k| format!("GOST512_{}.p12", crate::csr_api::hex(&k)))
+        .unwrap_or_default();
+    let mut error: Option<String> = None;
+    let new_password = loop {
+        let Some(pw) = shared
+            .ui
+            .ask_new_password(origin, &file_hint, error.as_deref())
+            .await
+        else {
+            return BasicsResponse::canceled();
+        };
+        match crate::csr_api::check_new_password(&pw) {
+            Ok(()) => break pw,
+            Err(e) => error = Some(e.to_string()),
+        }
+    };
+    let f = folder.clone();
+    let r = tokio::task::spawn_blocking(move || {
+        crate::csr_api::import(&f, &default_password, &certs, &new_password)
+    })
+    .await;
+    match r {
+        Ok(Ok(paths)) => {
+            let mut settings = Settings::load(&shared.settings_path);
+            for p in &paths {
+                settings.push_recent(p.clone());
+            }
+            settings.save(&shared.settings_path);
+            let names: Vec<String> = paths.iter().map(|p| p.display().to_string()).collect();
+            shared
+                .ui
+                .notify(
+                    "ncalayer-rs",
+                    &s.key_saved.replace("{file}", &names.join(", ")),
+                )
+                .await;
+            BasicsResponse::with_body(json!({ "result": true }))
+        }
+        Ok(Err(e)) => {
+            shared.ui.error(&format!("{e:#}")).await;
+            fail(BasicsFailure::CertificateImportingFailure, format!("{e:#}"))
+        }
+        Err(e) => fail(BasicsFailure::CertificateImportingFailure, e.to_string()),
+    }
 }
 
 /// `basics.sign` (apiVersion 2), CMS only for now; `format: "xml"` arrives with stage 5.

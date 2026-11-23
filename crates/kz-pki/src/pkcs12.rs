@@ -85,8 +85,7 @@ struct Bags {
     certs: Vec<CertBag>,
 }
 
-/// Parse and decrypt a PFX.
-pub fn open(bytes: &[u8], password: &str) -> Result<KeyStore> {
+fn read_bags(bytes: &[u8], password: &str) -> Result<Bags> {
     let pfx = Node::parse(bytes)?;
     pfx.expect_tag(ber::TAG_SEQUENCE)?;
     let version = pfx.child(0)?.small_int()?;
@@ -127,8 +126,196 @@ pub fn open(bytes: &[u8], password: &str) -> Result<KeyStore> {
         };
         collect_bags(&safe_contents, password, &mut bags)?;
     }
+    Ok(bags)
+}
 
-    build_store(bags)
+/// Parse and decrypt a PFX.
+pub fn open(bytes: &[u8], password: &str) -> Result<KeyStore> {
+    build_store(read_bags(bytes, password)?)
+}
+
+/// A key bag as stored, without pairing it with a certificate.
+#[derive(Debug, Clone)]
+pub struct RawKey {
+    /// `friendlyName` attribute (the alias).
+    pub friendly_name: Option<String>,
+    /// `localKeyId` attribute.
+    pub local_key_id: Option<Vec<u8>>,
+    /// Decrypted DER `PrivateKeyInfo`.
+    pub pkcs8: zeroize::Zeroizing<Vec<u8>>,
+}
+
+/// A certificate bag as stored.
+#[derive(Debug, Clone)]
+pub struct RawCert {
+    /// `friendlyName` attribute.
+    pub friendly_name: Option<String>,
+    /// `localKeyId` attribute.
+    pub local_key_id: Option<Vec<u8>>,
+    /// DER certificate.
+    pub der: Vec<u8>,
+}
+
+/// All bags of a container. Unlike [`KeyStore`] this also opens containers that hold a key
+/// without a certificate — what NCALayer leaves on disk between `generateCsr` and
+/// `importCertificate`.
+#[derive(Debug, Clone, Default)]
+pub struct RawStore {
+    /// Key bags in container order.
+    pub keys: Vec<RawKey>,
+    /// Certificate bags in container order.
+    pub certs: Vec<RawCert>,
+}
+
+/// Parse and decrypt a PFX into its raw bags.
+pub fn open_raw(bytes: &[u8], password: &str) -> Result<RawStore> {
+    let bags = read_bags(bytes, password)?;
+    Ok(RawStore {
+        keys: bags
+            .keys
+            .into_iter()
+            .map(|k| RawKey {
+                friendly_name: k.friendly_name,
+                local_key_id: k.local_key_id,
+                pkcs8: zeroize::Zeroizing::new(k.key_der),
+            })
+            .collect(),
+        certs: bags
+            .certs
+            .into_iter()
+            .map(|c| RawCert {
+                friendly_name: c.friendly_name,
+                local_key_id: c.local_key_id,
+                der: c.cert.as_der().to_vec(),
+            })
+            .collect(),
+    })
+}
+
+/// Iteration count Kalkan uses for the MAC and both PBE layers.
+const KALKAN_ITERATIONS: u32 = 1024;
+
+/// Write a PFX the way Kalkan (`KeyStore.getInstance("PKCS12", "KALKAN").store`) does:
+/// keys as `pkcs8ShroudedKeyBag` under `pbeWithSHAAnd3-KeyTripleDES-CBC` in a plain `Data`
+/// safe, certificates in an `EncryptedData` safe under `pbeWithSHAAnd40BitRC2-CBC`, every
+/// bag with `localKeyId` and `friendlyName`, HMAC-SHA1 MAC; 1024 iterations, 20-byte salts.
+/// The output is DER (Kalkan itself writes indefinite-length BER; both read the same).
+pub fn write(
+    keys: &[RawKey],
+    certs: &[RawCert],
+    password: &str,
+    rng: &mut dyn rand_core::CryptoRng,
+) -> Result<Vec<u8>> {
+    use crate::derw;
+    use crate::pbe::{self, EncryptScheme};
+    let mut salt = || {
+        let mut s = [0u8; 20];
+        rng.fill_bytes(&mut s);
+        s
+    };
+    let attrs = |name: &Option<String>, id: &Option<Vec<u8>>| -> Vec<u8> {
+        let mut v = Vec::new();
+        if let Some(id) = id {
+            v.push(derw::sequence(&[
+                &derw::oid(&oid::ATTR_LOCAL_KEY_ID),
+                &derw::set_of(vec![derw::octet_string(id)]),
+            ]));
+        }
+        if let Some(n) = name {
+            v.push(derw::sequence(&[
+                &derw::oid(&oid::ATTR_FRIENDLY_NAME),
+                &derw::set_of(vec![derw::bmp_string(n)]),
+            ]));
+        }
+        if v.is_empty() {
+            Vec::new()
+        } else {
+            derw::set_of(v)
+        }
+    };
+
+    let mut key_bags = Vec::new();
+    for k in keys {
+        let (alg, ct) = pbe::encrypt(
+            EncryptScheme::Sha1TripleDes,
+            password,
+            &salt(),
+            KALKAN_ITERATIONS,
+            &k.pkcs8,
+        )?;
+        let epki = derw::sequence(&[&alg, &derw::octet_string(&ct)]);
+        key_bags.push(derw::sequence(&[
+            &derw::oid(&oid::BAG_SHROUDED_KEY),
+            &derw::explicit(0, &epki),
+            &attrs(&k.friendly_name, &k.local_key_id),
+        ]));
+    }
+    let data_ci = |content: &[u8]| {
+        derw::sequence(&[
+            &derw::oid(&oid::PKCS7_DATA),
+            &derw::explicit(0, &derw::octet_string(content)),
+        ])
+    };
+    let mut safes = vec![data_ci(&derw::sequence(
+        &key_bags.iter().map(Vec::as_slice).collect::<Vec<_>>(),
+    ))];
+
+    if !certs.is_empty() {
+        let mut cert_bags = Vec::new();
+        for c in certs {
+            let cert_bag = derw::sequence(&[
+                &derw::oid(&oid::CERT_TYPE_X509),
+                &derw::explicit(0, &derw::octet_string(&c.der)),
+            ]);
+            cert_bags.push(derw::sequence(&[
+                &derw::oid(&oid::BAG_CERT),
+                &derw::explicit(0, &cert_bag),
+                &attrs(&c.friendly_name, &c.local_key_id),
+            ]));
+        }
+        let plain = derw::sequence(&cert_bags.iter().map(Vec::as_slice).collect::<Vec<_>>());
+        let (alg, ct) = pbe::encrypt(
+            EncryptScheme::Sha1Rc2_40,
+            password,
+            &salt(),
+            KALKAN_ITERATIONS,
+            &plain,
+        )?;
+        // EncryptedContentInfo { data, alg, [0] IMPLICIT OCTET STRING }
+        let eci = derw::sequence(&[&derw::oid(&oid::PKCS7_DATA), &alg, &derw::tlv(0x80, &ct)]);
+        let encrypted_data = derw::sequence(&[&derw::integer_u64(0), &eci]);
+        safes.push(derw::sequence(&[
+            &derw::oid(&oid::PKCS7_ENCRYPTED_DATA),
+            &derw::explicit(0, &encrypted_data),
+        ]));
+    }
+
+    let auth_safe = derw::sequence(&safes.iter().map(Vec::as_slice).collect::<Vec<_>>());
+    let mac_salt = salt();
+    let mac_key = derive_key_utf8::<sha1::Sha1>(
+        password,
+        &mac_salt,
+        Pkcs12KeyType::Mac,
+        KALKAN_ITERATIONS as i32,
+        20,
+    )?;
+    let mut mac = <Hmac<sha1::Sha1> as digest::KeyInit>::new_from_slice(&mac_key)
+        .map_err(|_| Error::Decrypt("HMAC key length".into()))?;
+    Mac::update(&mut mac, &auth_safe);
+    let mac = mac.finalize().into_bytes();
+    let mac_data = derw::sequence(&[
+        &derw::sequence(&[
+            &derw::sequence(&[&derw::oid(&oid::SHA1), &derw::null()]),
+            &derw::octet_string(&mac),
+        ]),
+        &derw::octet_string(&mac_salt),
+        &derw::integer_u64(KALKAN_ITERATIONS.into()),
+    ]);
+    Ok(derw::sequence(&[
+        &derw::integer_u64(3),
+        &data_ci(&auth_safe),
+        &mac_data,
+    ]))
 }
 
 /// Split a `ContentInfo` into its type and the node inside `[0] EXPLICIT`.

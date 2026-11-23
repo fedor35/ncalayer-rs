@@ -15,6 +15,7 @@
 | `commonUtils`: getKeyInfo, createCMSSignature*/createCAdES*, applyCAdEST, showFileChooser; `basics.sign(cms)` | по сокету, оракул Kalkan |
 
 | XMLDSig (`kz-xmldsig`), `signXml`/`signXmls`, `basics.sign(xml)` | **egov.kz: вход боевым ключом** |
+| `basics.generateCsr` / `importCertificate` (выпуск ключа на did.pki.gov.kz, файл PKCS12, ГОСТ-2015-512) | CSR и контейнер сверены с KeyStoreUtil NCALayer (оракул), импорт в обе стороны |
 
 Проверено на боевых порталах с действующим ключом НУЦ: **cabinet.stat.gov.kz**, **egov.kz**, **knp.kgd.gov.kz** (кабинет налогоплательщика).
 

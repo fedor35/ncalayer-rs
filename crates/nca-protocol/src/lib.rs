@@ -133,6 +133,17 @@ impl BasicsResponse {
             body: Some(json!({})),
         }
     }
+    /// Success with an arbitrary body: the Java `LayerResponse` object serialised as is
+    /// (`CsrResponse` → `{"pems": [...]}`, `ImportCertResponse` → `{"result": true}`).
+    pub fn with_body(body: Value) -> Self {
+        Self {
+            status: true,
+            code: None,
+            message: None,
+            details: None,
+            body: Some(body),
+        }
+    }
     pub fn error(code: BasicsFailure, message: impl Into<String>) -> Self {
         Self {
             status: false,

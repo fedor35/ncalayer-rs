@@ -98,7 +98,7 @@ GUI: Slint (уже знаком по vega-bs-config, рендерится под
 | 5 ✅ 03.10 (**egov.kz: вход боевым ключом через basics.sign(xml) сработал**) | `kz-xmldsig` + signXml/signXmls + basics.sign(xml) | egov.kz авторизация и подпись заявления |
 | 6 ✅ 03.10 | GUI: диалоги Slint, трей, локаль, настройки (прокси, недавние ключи как в settings.json) | работает в Plasma Wayland и GNOME без X11 |
 | 7 ✅ 03.10 (релизы 1.0.x: deb, AppImage, Arch; bump.yml) | Упаковка: PKGBUILD/AUR, deb, AppImage; systemd --user unit; установка CA | «один пакет и работает» на Arch и Ubuntu |
-| 8 | Позже: legacy ГОСТ-2004 (S-box сверить), токены по PC/SC, Windows/macOS, generateCsr/importCertificate | — |
+| 8 | Позже: legacy ГОСТ-2004 (S-box сверить), токены по PC/SC, Windows/macOS. `basics.generateCsr`/`importCertificate` для PKCS12 — сделано 20.11.2026 (ГОСТ-2015-512, сверено с KeyStoreUtil NCALayer через `tools/java-oracle/CsrOracle.java`) | — |
 
 Этапы 1–3 и 5 — чистые библиотеки, их можно делать параллельно и тестировать без браузера.
 

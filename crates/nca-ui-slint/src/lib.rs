@@ -26,7 +26,9 @@ mod tray;
 pub mod generated {
     slint::include_modules!();
 }
-use generated::{ErrorDialog, KeyChooser, PasswordDialog, SettingsWindow, Texts};
+use generated::{
+    ErrorDialog, KeyChooser, NewPasswordDialog, PasswordDialog, SettingsWindow, Texts,
+};
 
 /// Fill a [`Texts`] table for `locale`; `origin`/`file` are substituted into the templates.
 #[doc(hidden)]
@@ -199,6 +201,11 @@ fn texts(s: &Strings, origin: &str, file: &str) -> Texts {
         recent_keys: s.recent_keys.into(),
         remove: s.remove.into(),
         start_minimized: s.start_minimized.into(),
+        new_password_title: s.new_password_title.into(),
+        new_password_prompt: s.new_password_prompt.replace("{file}", file).into(),
+        new_password_rules: s.new_password_rules.into(),
+        repeat_password: s.repeat_password.into(),
+        passwords_mismatch: s.passwords_mismatch.into(),
     }
 }
 
@@ -306,6 +313,41 @@ impl Ui for SlintUi {
             let weak = w.as_weak();
             w.on_cancel(move || {
                 // Dropping the sender without a value reads as "cancelled" on the other side.
+                drop(reply.0.borrow_mut().take());
+                hide(&weak);
+            });
+            w.show()
+        })
+        .await
+    }
+
+    async fn choose_folder(&self, title: &str, start_dir: Option<&Path>) -> Option<PathBuf> {
+        files::pick_folder(title, start_dir).await
+    }
+
+    async fn ask_new_password(
+        &self,
+        origin: &str,
+        file_name: &str,
+        error: Option<&str>,
+    ) -> Option<String> {
+        let s = self.shared.strings();
+        let origin = origin.to_string();
+        let file_name = file_name.to_string();
+        let error = error.unwrap_or("").to_string();
+        on_ui(move |reply: Reply<String>| {
+            let w = NewPasswordDialog::new()?;
+            w.set_t(texts(s, &origin, &file_name));
+            w.set_origin(origin.into());
+            w.set_error(error.into());
+            let weak = w.as_weak();
+            let r = reply.clone();
+            w.on_confirm(move |pw| {
+                r.send(pw.to_string());
+                hide(&weak);
+            });
+            let weak = w.as_weak();
+            w.on_cancel(move || {
                 drop(reply.0.borrow_mut().take());
                 hide(&weak);
             });
